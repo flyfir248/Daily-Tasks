@@ -3,10 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Todo App</title>
+    <title>Daily Tasks To-Do List</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="icon" href="{{ url_for('static', filename='misc/logo/Logo.png') }}" type="image/png">
+    <style>
+        /* Define the shake animation */
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            50% { transform: translateX(10px); }
+            75% { transform: translateX(-10px); }
+            100% { transform: translateX(0); }
+        }
+
+        /* Apply the shake animation to the logo */
+        .logo-container img {
+            animation: shake 0.5s ease-in-out;
+        }
+
+        /* Add some basic styling */
+        .logo-container {
+            text-align: center;
+            margin-top: 20px; /* Adjust as needed */
+        }
+        .logo-container img {
+            max-width: 100%; /* Adjust as needed */
+            height: auto;
+        }
+    </style>
 </head>
 <body>
+    <div class="logo-container">
+        <img src="{{ url_for('static', filename='misc/logo/Logo.png') }}" alt="Logo">
+    </div>
     <div class="container">
         <label class="switch">
             <input type="checkbox" id="themeToggle">
@@ -34,5 +63,33 @@
             });
         });
     </script>
+    <footer class="footer">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-4">
+
+                </div>
+            <div class="col-md-4 text-center">
+                <div>
+                </div>
+                <p>Anoop Johny 🤖</p>
+                <p>Follow Me</p>
+                <ul class="social-icons">
+                    <a href="https://www.linkedin.com/in/anoop-johny-30a746181/"><img src="{{ url_for('static', filename='res/linkedin.png') }}" alt="LinkedIn"></a>
+                    <a href="https://github.com/flyfir248"><img src="{{ url_for('static', filename='res/github.png') }}" alt="GitHub"></a>
+                    <a href="https://pythonpythonme.netlify.app/index.html"><img src="{{ url_for('static', filename='res/web.png') }}" alt="Website"></a>
+                    <a href="https://medium.com/@anoopjohny2000"><img src="{{ url_for('static', filename='res/medium.png') }}" alt="Medium"></a>
+                    <a href="https://www.kaggle.com/anoopjohny"><img src="https://cdn3.iconfinder.com/data/icons/logos-and-brands-adobe/512/189_Kaggle-1024.png" alt="The Kaggle App" width="55" height="55"></a>
+                </ul>
+            </div>
+        </div>
+            <div class="row">
+                <div class="col-md-12">
+                    <p class="text-muted">© 2024-2025 PythonPythonME.</p>
+                    <p>All rights reserved.</p>
+                </div>
+            </div>
+        </div>
+    </footer>
 </body>
 </html>
