@@ -42,6 +42,26 @@ li {
     justify-content: space-between;
 }
 
+li.completed-on-time {
+    background-color: #d4edda; /* Green */
+    color: #155724;
+}
+
+li.completed-late {
+    background-color: #fff3cd; /* Yellow */
+    color: #856404;
+}
+
+li.pending {
+    background-color: #cce5ff; /* Blue */
+    color: #004085;
+}
+
+li.overdue {
+    background-color: #f8d7da; /* Red */
+    color: #721c24;
+}
+
 li > * {
     margin-right: 10px;
 }
@@ -106,6 +126,26 @@ body.dark-mode .container {
 
 body.dark-mode li {
     background: #333;
+}
+
+body.dark-mode li.completed-on-time {
+    background-color: #155724; /* Green */
+    color: #d4edda;
+}
+
+body.dark-mode li.completed-late {
+    background-color: #856404; /* Yellow */
+    color: #fff3cd;
+}
+
+body.dark-mode li.pending {
+    background-color: #004085; /* Blue */
+    color: #cce5ff;
+}
+
+body.dark-mode li.overdue {
+    background-color: #721c24; /* Red */
+    color: #f8d7da;
 }
 
 body.dark-mode form {

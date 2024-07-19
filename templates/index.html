@@ -4,7 +4,7 @@
 <h1>Tasks</h1>
 <ul>
     {% for task in tasks %}
-    <li>
+    <li class="{{ task.status }}">
         <div>
             <h3>{{ task.title }}</h3>
             <p>{{ task.description }}</p>

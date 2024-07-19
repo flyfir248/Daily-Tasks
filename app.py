@@ -18,6 +18,18 @@ class Task(db.Model):
 @app.route('/')
 def index():
     tasks = Task.query.order_by(Task.priority.desc()).all()
+    current_date = datetime.now()
+    for task in tasks:
+        if task.done:
+            if task.due_date and task.due_date >= current_date:
+                task.status = 'completed-on-time'
+            else:
+                task.status = 'completed-late'
+        else:
+            if task.due_date and task.due_date < current_date:
+                task.status = 'overdue'
+            else:
+                task.status = 'pending'
     return render_template('index.html', tasks=tasks)
 
 @app.route('/add', methods=['GET', 'POST'])
