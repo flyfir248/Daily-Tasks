@@ -7,6 +7,12 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///tasks.db'
 app.config['SECRET_KEY'] = 'your_secret_key'
 db = SQLAlchemy(app)
 
+class Subtask(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    content = db.Column(db.String(200), nullable=False)
+    done = db.Column(db.Boolean, default=False)
+    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=False)
+
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
@@ -15,6 +21,7 @@ class Task(db.Model):
     priority = db.Column(db.Integer, default=1)
     due_date = db.Column(db.DateTime, nullable=True)
     category = db.Column(db.String(50), nullable=True)  # New field
+    subtasks = db.relationship('Subtask', backref='task', lazy=True, cascade="all, delete-orphan")
 
 
 @app.route('/')
@@ -41,6 +48,7 @@ def index():
 
     return render_template('index.html', tasks_by_category=tasks_by_category)
 
+
 @app.route('/add', methods=['GET', 'POST'])
 def add_task():
     if request.method == 'POST':
@@ -49,12 +57,21 @@ def add_task():
         priority = int(request.form['priority'])
         due_date_str = request.form['due_date']
         due_date = datetime.strptime(due_date_str, '%Y-%m-%d') if due_date_str else None
-        category = request.form['category']  # New line
-        new_task = Task(title=title, description=description, priority=priority, due_date=due_date,category=category)  # Updated
+        category = request.form['category']
+        new_task = Task(title=title, description=description, priority=priority, due_date=due_date, category=category)
+
+        # Handle subtasks
+        subtasks = request.form.getlist('subtasks')
+        for subtask_content in subtasks:
+            if subtask_content.strip():  # Ignore empty subtasks
+                new_subtask = Subtask(content=subtask_content)
+                new_task.subtasks.append(new_subtask)
+
         db.session.add(new_task)
         db.session.commit()
         return redirect(url_for('index'))
     return render_template('add_task.html')
+
 
 @app.route('/update/<int:id>', methods=['GET', 'POST'])
 def update_task(id):
@@ -66,7 +83,28 @@ def update_task(id):
         due_date_str = request.form['due_date']
         task.due_date = datetime.strptime(due_date_str, '%Y-%m-%d') if due_date_str else None
         task.done = 'done' in request.form
-        task.category = request.form['category']  # New line
+        task.category = request.form['category']
+
+        # Handle subtasks
+        existing_subtasks = {subtask.id: subtask for subtask in task.subtasks}
+        subtask_contents = request.form.getlist('subtasks')
+        subtask_ids = request.form.getlist('subtask_ids')
+        subtask_dones = request.form.getlist('subtask_dones')
+
+        for i, content in enumerate(subtask_contents):
+            if content.strip():
+                if subtask_ids[i]:  # Existing subtask
+                    subtask = existing_subtasks.pop(int(subtask_ids[i]))
+                    subtask.content = content
+                    subtask.done = subtask_ids[i] in subtask_dones
+                else:  # New subtask
+                    new_subtask = Subtask(content=content)
+                    task.subtasks.append(new_subtask)
+
+        # Remove subtasks that were deleted
+        for subtask in existing_subtasks.values():
+            db.session.delete(subtask)
+
         db.session.commit()
         return redirect(url_for('index'))
     return render_template('update_task.html', task=task)

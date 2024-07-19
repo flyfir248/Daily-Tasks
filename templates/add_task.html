@@ -2,7 +2,7 @@
 
 {% block content %}
 <h2>Add Task</h2>
-<form method="POST">
+<form method="POST" id="taskForm">
     <label for="title">Title:</label>
     <input type="text" id="title" name="title" required>
 
@@ -25,5 +25,32 @@
     <input type="text" id="category" name="category">
 
     <button type="submit">Add Task</button>
+
+    <div id="subtasks">
+        <label for="subtask">Subtasks:</label>
+        <div class="subtask-entry">
+            <input type="text" name="subtasks">
+            <button type="button" class="add-subtask">+</button>
+        </div>
+    </div>
+
+    <button type="submit">Add Task</button>
 </form>
+
+<script>
+document.getElementById('subtasks').addEventListener('click', function(e) {
+    if (e.target.classList.contains('add-subtask')) {
+        const newSubtaskEntry = document.createElement('div');
+        newSubtaskEntry.className = 'subtask-entry';
+        newSubtaskEntry.innerHTML = `
+            <input type="text" name="subtasks">
+            <button type="button" class="add-subtask">+</button>
+            <button type="button" class="remove-subtask">-</button>
+        `;
+        e.target.parentElement.after(newSubtaskEntry);
+    } else if (e.target.classList.contains('remove-subtask')) {
+        e.target.parentElement.remove();
+    }
+});
+</script>
 {% endblock %}

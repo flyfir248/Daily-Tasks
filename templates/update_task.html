@@ -28,5 +28,46 @@
     <input type="text" id="category" name="category" value="{{ task.category }}">
 
     <button type="submit">Update Task</button>
+
+    <div id="subtasks">
+        <label for="subtask">Subtasks:</label>
+        {% for subtask in task.subtasks %}
+        <div class="subtask-entry">
+            <input type="hidden" name="subtask_ids" value="{{ subtask.id }}">
+            <input type="text" name="subtasks" value="{{ subtask.content }}">
+            <input type="checkbox" name="subtask_dones" value="{{ subtask.id }}" {% if subtask.done %}checked{% endif %}> Done
+            <button type="button" class="add-subtask">+</button>
+            <button type="button" class="remove-subtask">-</button>
+        </div>
+        {% endfor %}
+        {% if not task.subtasks %}
+        <div class="subtask-entry">
+            <input type="hidden" name="subtask_ids" value="">
+            <input type="text" name="subtasks">
+            <button type="button" class="add-subtask">+</button>
+        </div>
+        {% endif %}
+    </div>
+
+    <button type="submit">Update Task</button>
 </form>
+
+<script>
+document.getElementById('subtasks').addEventListener('click', function(e) {
+    if (e.target.classList.contains('add-subtask')) {
+        const newSubtaskEntry = document.createElement('div');
+        newSubtaskEntry.className = 'subtask-entry';
+        newSubtaskEntry.innerHTML = `
+            <input type="hidden" name="subtask_ids" value="">
+            <input type="text" name="subtasks">
+            <input type="checkbox" name="subtask_dones" value=""> Done
+            <button type="button" class="add-subtask">+</button>
+            <button type="button" class="remove-subtask">-</button>
+        `;
+        e.target.parentElement.after(newSubtaskEntry);
+    } else if (e.target.classList.contains('remove-subtask')) {
+        e.target.parentElement.remove();
+    }
+});
+</script>
 {% endblock %}

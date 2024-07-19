@@ -25,6 +25,15 @@
                 <a href="{{ url_for('update_task', id=task.id) }}">Update</a>
                 <a href="{{ url_for('delete_task', id=task.id) }}">Delete</a>
             </div>
+            <h4>Subtasks:</h4>
+            <ul>
+                {% for subtask in task.subtasks %}
+                <li>
+                    {{ subtask.content }}
+                    {% if subtask.done %}(Done){% endif %}
+                </li>
+                {% endfor %}
+            </ul>
         </li>
         {% endfor %}
     </ul>
