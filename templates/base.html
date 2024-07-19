@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Todo App</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <!-- Dark Mode Toggle Switch -->
+        <div class="toggle-container">
+            <label class="switch">
+                <input type="checkbox" id="theme-toggle">
+                <span class="slider round"></span>
+            </label>
+            <span id="theme-label">Light Mode</span>
+        </div>
+
+        {% block content %}{% endblock %}
+    </div>
+    <script>
+        const toggle = document.getElementById('theme-toggle');
+        const body = document.body;
+        const themeLabel = document.getElementById('theme-label');
+
+        toggle.addEventListener('change', function() {
+            if (toggle.checked) {
+                body.classList.add('dark-mode');
+                themeLabel.textContent = 'Dark Mode';
+                localStorage.setItem('theme', 'dark');
+            } else {
+                body.classList.remove('dark-mode');
+                themeLabel.textContent = 'Light Mode';
+                localStorage.setItem('theme', 'light');
+            }
+        });
+
+        window.addEventListener('load', function() {
+            const theme = localStorage.getItem('theme');
+            if (theme === 'dark') {
+                toggle.checked = true;
+                body.classList.add('dark-mode');
+                themeLabel.textContent = 'Dark Mode';
+            }
+        });
+    </script>
+</body>
+</html>
