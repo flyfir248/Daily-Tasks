@@ -2,29 +2,33 @@
 
 {% block content %}
 <h1>Tasks</h1>
-<ul>
-    {% for task in tasks %}
-    <li class="{{ task.status }}">
-        <div>
-            <h3>{{ task.title }}</h3>
-            <p>{{ task.description }}</p>
-        </div>
-        <div>
-            <p>Priority:
-                {% if task.priority == 3 %}High
-                {% elif task.priority == 2 %}Medium
-                {% else %}Low
-                {% endif %}
-            </p>
-            <p>Due: {{ task.due_date.strftime('%Y-%m-%d') if task.due_date else 'No due date' }}</p>
-            <p>{% if task.done %}(Done){% endif %}</p>
-        </div>
-        <div>
-            <a href="{{ url_for('update_task', id=task.id) }}">Update</a>
-            <a href="{{ url_for('delete_task', id=task.id) }}">Delete</a>
-        </div>
-    </li>
-    {% endfor %}
-</ul>
+{% for category, tasks in tasks_by_category.items() %}
+    <h2>{{ category }}</h2>
+    <ul>
+        {% for task in tasks %}
+        <li class="{{ task.status }}">
+            <div>
+                <h3>{{ task.title }}</h3>
+                <p>{{ task.description }}</p>
+            </div>
+            <div>
+                <p>Priority:
+                    {% if task.priority == 3 %}High
+                    {% elif task.priority == 2 %}Medium
+                    {% else %}Low
+                    {% endif %}
+                </p>
+                <p>Due: {{ task.due_date.strftime('%Y-%m-%d') if task.due_date else 'No due date' }}</p>
+                <p>{% if task.done %}(Done){% endif %}</p>
+            </div>
+            <div>
+                <a href="{{ url_for('update_task', id=task.id) }}">Update</a>
+                <a href="{{ url_for('delete_task', id=task.id) }}">Delete</a>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+
+{% endfor %}
 <a href="{{ url_for('add_task') }}">Add Task</a>
 {% endblock %}

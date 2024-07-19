@@ -14,11 +14,14 @@ class Task(db.Model):
     done = db.Column(db.Boolean, default=False)
     priority = db.Column(db.Integer, default=1)
     due_date = db.Column(db.DateTime, nullable=True)
+    category = db.Column(db.String(50), nullable=True)  # New field
+
 
 @app.route('/')
 def index():
     tasks = Task.query.order_by(Task.priority.desc()).all()
     current_date = datetime.now()
+    tasks_by_category = {}
     for task in tasks:
         if task.done:
             if task.due_date and task.due_date >= current_date:
@@ -30,7 +33,13 @@ def index():
                 task.status = 'overdue'
             else:
                 task.status = 'pending'
-    return render_template('index.html', tasks=tasks)
+
+        category = task.category or 'Uncategorized'
+        if category not in tasks_by_category:
+            tasks_by_category[category] = []
+        tasks_by_category[category].append(task)
+
+    return render_template('index.html', tasks_by_category=tasks_by_category)
 
 @app.route('/add', methods=['GET', 'POST'])
 def add_task():
@@ -40,7 +49,8 @@ def add_task():
         priority = int(request.form['priority'])
         due_date_str = request.form['due_date']
         due_date = datetime.strptime(due_date_str, '%Y-%m-%d') if due_date_str else None
-        new_task = Task(title=title, description=description, priority=priority, due_date=due_date)
+        category = request.form['category']  # New line
+        new_task = Task(title=title, description=description, priority=priority, due_date=due_date,category=category)  # Updated
         db.session.add(new_task)
         db.session.commit()
         return redirect(url_for('index'))
@@ -56,6 +66,7 @@ def update_task(id):
         due_date_str = request.form['due_date']
         task.due_date = datetime.strptime(due_date_str, '%Y-%m-%d') if due_date_str else None
         task.done = 'done' in request.form
+        task.category = request.form['category']  # New line
         db.session.commit()
         return redirect(url_for('index'))
     return render_template('update_task.html', task=task)

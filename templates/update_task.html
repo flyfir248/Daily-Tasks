@@ -23,5 +23,10 @@
     <input type="checkbox" id="done" name="done" {% if task.done %}checked{% endif %}>
 
     <button type="submit">Update Task</button>
+
+    <label for="category">Category:</label>
+    <input type="text" id="category" name="category" value="{{ task.category }}">
+
+    <button type="submit">Update Task</button>
 </form>
 {% endblock %}
