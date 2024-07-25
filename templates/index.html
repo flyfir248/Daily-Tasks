@@ -1,43 +1,272 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h1>Tasks</h1>
-{% for category, tasks in tasks_by_category.items() %}
-    <h2>{{ category }}</h2>
-    <ul>
-        {% for task in tasks %}
-        <li class="{{ task.status }}">
-            <div>
-                <h3>{{ task.title }}</h3>
-                <p>{{ task.description }}</p>
-            </div>
-            <div>
-                <p>Priority:
-                    {% if task.priority == 3 %}High
-                    {% elif task.priority == 2 %}Medium
-                    {% else %}Low
-                    {% endif %}
-                </p>
-                <p>Due: {{ task.due_date.strftime('%Y-%m-%d') if task.due_date else 'No due date' }}</p>
-                <p>{% if task.done %}(Done){% endif %}</p>
-            </div>
-            <div>
-                <a href="{{ url_for('update_task', id=task.id) }}">Update</a>
-                <a href="{{ url_for('delete_task', id=task.id) }}">Delete</a>
-            </div>
-            <h4>Subtasks:</h4>
-            <ul>
-                {% for subtask in task.subtasks %}
-                <li>
-                    {{ subtask.content }}
-                    {% if subtask.done %}(Done){% endif %}
-                </li>
-                {% endfor %}
-            </ul>
-        </li>
-        {% endfor %}
-    </ul>
+<div class="tasks-container">
+    <h1 class="main-title">Tasks</h1>
 
-{% endfor %}
-<a href="{{ url_for('add_task') }}">Add Task</a>
+    {% for category, tasks in tasks_by_category.items() %}
+    <div class="category-container">
+        <h2 class="category-title">{{ category }}</h2>
+        <ul class="task-list">
+            {% for task in tasks %}
+            <li class="task-item {{ task.status }}">
+                <div class="task-header">
+                    <h3 class="task-title">{{ task.title }}</h3>
+                </div>
+                <div class="task-body">
+                    <div class="task-description">
+                        <p>{{ task.description }}</p>
+                    </div>
+                    <div class="task-details">
+                        <span class="task-label">Priority:</span>
+                        <span class="task-value">
+                            {% if task.priority == 3 %}High
+                            {% elif task.priority == 2 %}Medium
+                            {% else %}Low
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="task-details">
+                        <span class="task-label">Due:</span>
+                        <span class="task-value">{{ task.due_date.strftime('%Y-%m-%d') if task.due_date else 'No due date' }}</span>
+                    </div>
+                    {% if task.done %}
+                    <div class="task-status">
+                        <span class="status-label">Done</span>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="task-actions">
+                    <a href="{{ url_for('update_task', id=task.id) }}" class="button update-btn">Update</a>
+                    <a href="{{ url_for('delete_task', id=task.id) }}" class="button delete-btn">Delete</a>
+                </div>
+                <div class="subtasks-container">
+                    <h4 class="subtasks-title">Subtasks:</h4>
+                    <ul class="subtasks-list">
+                        {% for subtask in task.subtasks %}
+                        <li class="subtask-item">
+                            <span class="subtask-content">{{ subtask.content }}</span>
+                            {% if subtask.done %}
+                            <span class="subtask-status">Done</span>
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endfor %}
+
+    <div class="add-task-container">
+        <a href="{{ url_for('add_task') }}" class="button add-task-btn">Add Task</a>
+    </div>
+</div>
+
+<style>
+    .tasks-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    .main-title {
+        font-size: 2.5em;
+        color: #2c3e50;
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    .category-container {
+        margin-bottom: 30px;
+    }
+    .category-title {
+        font-size: 2em;
+        color: #34495e;
+        border-bottom: 2px solid #3498db;
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+    }
+    .task-list {
+        list-style-type: none;
+        padding: 0;
+    }
+    .task-item {
+        background-color: #f9f9f9;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        padding: 20px;
+    }
+    .task-header {
+        margin-bottom: 15px;
+    }
+    .task-title {
+        font-size: 1.5em;
+        color: #2c3e50;
+        margin: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .task-body {
+        margin-bottom: 15px;
+    }
+    .task-description {
+        margin-bottom: 10px;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+    }
+    .task-details {
+        display: flex;
+        flex-wrap: wrap;
+        margin-bottom: 5px;
+    }
+    .task-label {
+        font-weight: bold;
+        margin-right: 10px;
+        background-color: #3498db;
+        color: white;
+        padding: 3px 8px;
+        border-radius: 4px;
+        margin-bottom: 5px;
+    }
+    .task-value {
+        background-color: #ecf0f1;
+        padding: 3px 8px;
+        border-radius: 4px;
+        margin-bottom: 5px;
+        flex: 1;
+        min-width: 100px;
+        word-break: break-word;
+    }
+    .task-status {
+        margin-top: 10px;
+    }
+    .status-label {
+        background-color: #2ecc71;
+        color: white;
+        padding: 3px 8px;
+        border-radius: 4px;
+    }
+    .task-actions {
+        margin-top: 15px;
+    }
+    .button {
+        display: inline-block;
+        padding: 8px 15px;
+        margin-right: 10px;
+        text-decoration: none;
+        color: white;
+        border-radius: 4px;
+    }
+    .update-btn {
+        background-color: #3498db;
+    }
+    .delete-btn {
+        background-color: #e74c3c;
+    }
+    .subtasks-container {
+        margin-top: 15px;
+    }
+    .subtasks-title {
+        font-size: 1.2em;
+        color: #34495e;
+        margin-bottom: 10px;
+    }
+    .subtasks-list {
+        list-style-type: none;
+        padding-left: 20px;
+        max-height: 150px; /* Limit the height of subtasks list */
+        overflow-y: auto; /* Add vertical scroll if content exceeds max-height */
+    }
+    .subtask-item {
+        margin-bottom: 5px;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+    }
+    .subtask-content {
+        margin-right: 10px;
+    }
+    .subtask-status {
+        background-color: #2ecc71;
+        color: white;
+        padding: 2px 5px;
+        border-radius: 3px;
+        font-size: 0.8em;
+    }
+    .add-task-container {
+        text-align: center;
+        margin-top: 30px;
+    }
+    .add-task-btn {
+        background-color: #27ae60;
+        font-size: 1.2em;
+        padding: 10px 20px;
+    }
+
+    .task-form {
+      max-width: 800px; /* Adjust as needed */
+      margin: 0 auto;
+    }
+
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      max-width: 100%;
+      padding: 10px;
+      box-sizing: border-box;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+
+    .form-group textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    /* For single-line inputs that might overflow */
+    .form-group input[type="text"] {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+</style>
+
+<script>
+document.querySelectorAll('.subtask-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', function() {
+        const subtaskId = this.id.split('-')[1];
+        const isDone = this.checked;
+
+        // Send an AJAX request to update the subtask status
+        fetch(`/update_subtask/${subtaskId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ done: isDone }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update the UI to reflect the new status
+                const statusSpan = this.nextElementSibling.querySelector('.subtask-status');
+                if (isDone) {
+                    if (!statusSpan) {
+                        const newStatusSpan = document.createElement('span');
+                        newStatusSpan.className = 'subtask-status';
+                        newStatusSpan.textContent = 'Done';
+                        this.nextElementSibling.appendChild(newStatusSpan);
+                    }
+                } else {
+                    if (statusSpan) {
+                        statusSpan.remove();
+                    }
+                }
+            }
+        });
+    });
+});
+</script>
 {% endblock %}

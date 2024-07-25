@@ -49,4 +49,117 @@ document.getElementById('subtasks').addEventListener('click', function(e) {
     }
 });
 </script>
+
+<style>
+    body {
+        font-family: Roboto Condensed;
+        line-height: 1.6;
+        color: #333;
+        background-color: #f4f4f4;
+    }
+    .container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #fff;
+        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        border-radius: 8px;
+    }
+    h1 {
+        font-size: 2.5em;
+        color: #2c3e50;
+        margin-bottom: 30px;
+    }
+    .task-form {
+        display: flex;
+        flex-direction: column;
+        gap: 25px;
+    }
+    .form-group {
+        display: flex;
+        flex-direction: column;
+    }
+    .form-group label {
+        font-size: 1.2em;
+        margin-bottom: 10px;
+        color: #f2f2f2;
+    }
+    .checkbox-group {
+        flex-direction: row;
+        align-items: center;
+        gap: 10px;
+    }
+    .checkbox-group label {
+        font-size: 1.2em;
+    }
+    input[type="text"], input[type="date"], select, textarea {
+        width: 100%;
+        padding: 12px;
+        border: 2px solid #bdc3c7;
+        border-radius: 4px;
+        font-size: 1.1em;
+    }
+    textarea {
+        height: 150px;
+    }
+    .subtask-entry {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-top: 15px;
+    }
+    .add-subtask, .remove-subtask {
+        font-size: 1.2em;
+        padding: 5px 10px;
+        background-color: #3498db;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    .remove-subtask {
+        background-color: #e74c3c;
+    }
+    .submit-btn {
+        background-color: #2ecc71;
+        color: white;
+        padding: 15px 25px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 1.2em;
+        transition: background-color 0.3s ease;
+    }
+    .submit-btn:hover {
+        background-color: #27ae60;
+    }
+
+    .task-form {
+      max-width: 800px; /* Adjust as needed */
+      margin: 0 auto;
+    }
+
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      max-width: 100%;
+      padding: 10px;
+      box-sizing: border-box;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+
+    .form-group textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    /* For single-line inputs that might overflow */
+    .form-group input[type="text"] {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+</style>
 {% endblock %}
