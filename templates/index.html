@@ -104,9 +104,10 @@
         font-size: 1.5em;
         color: #2c3e50;
         margin: 0;
-        white-space: nowrap;
+        white-space: normal; /* Allow text to wrap */
         overflow: hidden;
         text-overflow: ellipsis;
+        word-wrap: break-word; /* Ensure long words break */
     }
     .task-body {
         margin-bottom: 15px;
@@ -232,6 +233,19 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    /* Media queries for responsive design */
+    @media (max-width: 600px) {
+        .task-title {
+            font-size: 1.2em;
+        }
+        .category-title {
+            font-size: 1.5em;
+        }
+        .main-title {
+            font-size: 2em;
+        }
     }
 </style>
 
