@@ -1,17 +1,17 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h2>Login</h2>
-<form method="POST" action="{{ url_for('login') }}">
-    <div>
-        <label for="username">Username:</label>
-        <input type="text" id="username" name="username" required>
+<h2 style="text-align: center; margin-bottom: 20px;">Login</h2>
+<form method="POST" action="{{ url_for('login') }}" style="max-width: 400px; margin: 0 auto; padding: 20px; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
+    <div style="margin-bottom: 10px;">
+        <label for="username" style="display: block; margin-bottom: 5px;">Username:</label>
+        <input type="text" id="username" name="username" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
     </div>
-    <div>
-        <label for="password">Password:</label>
-        <input type="password" id="password" name="password" required>
+    <div style="margin-bottom: 10px;">
+        <label for="password" style="display: block; margin-bottom: 5px;">Password:</label>
+        <input type="password" id="password" name="password" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
     </div>
-    <button type="submit">Login</button>
+    <button type="submit" style="background-color: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;">Login</button>
 </form>
-<p>Don't have an account? <a href="{{ url_for('register') }}">Register here</a></p>
+<p style="text-align: center; margin-top: 10px;">Don't have an account? <a href="{{ url_for('register') }}" style="color: #4CAF50; text-decoration: none;">Register here</a></p>
 {% endblock %}

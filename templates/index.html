@@ -176,13 +176,15 @@
     .subtasks-list {
         list-style-type: none;
         padding-left: 20px;
-        max-height: 150px; /* Limit the height of subtasks list */
-        overflow-y: auto; /* Add vertical scroll if content exceeds max-height */
+        overflow: hidden; /* Remove the vertical scroll */
     }
     .subtask-item {
         margin-bottom: 5px;
         word-wrap: break-word;
         overflow-wrap: break-word;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
     .subtask-content {
         margin-right: 10px;
