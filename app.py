@@ -1,18 +1,25 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from flask_bcrypt import Bcrypt
 from datetime import datetime
+from flask_migrate import Migrate
 import os
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///tasks.db'
-app.config['SECRET_KEY'] = 'your_secret_key'
+app.config['SECRET_KEY'] = 'your_secret_key'  # Change this to a random secret key
 db = SQLAlchemy(app)
+bcrypt = Bcrypt(app)
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
+migrate = Migrate(app, db)
 
-class Subtask(db.Model):
+class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    content = db.Column(db.String(200), nullable=False)
-    done = db.Column(db.Boolean, default=False)
-    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=False)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password = db.Column(db.String(60), nullable=False)
+    tasks = db.relationship('Task', backref='user', lazy=True)
 
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -21,13 +28,71 @@ class Task(db.Model):
     done = db.Column(db.Boolean, default=False)
     priority = db.Column(db.Integer, default=1)
     due_date = db.Column(db.DateTime, nullable=True)
-    category = db.Column(db.String(50), nullable=True)  # New field
+    category = db.Column(db.String(50), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     subtasks = db.relationship('Subtask', backref='task', lazy=True, cascade="all, delete-orphan")
 
+class Subtask(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    content = db.Column(db.String(200), nullable=False)
+    done = db.Column(db.Boolean, default=False)
+    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=False)
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        existing_user = User.query.filter_by(username=username).first()
+        if existing_user:
+            flash('Username already exists. Please choose a different one.', 'danger')
+            return redirect(url_for('register'))
+        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+        user = User(username=username, password=hashed_password)
+        db.session.add(user)
+        db.session.commit()
+        app.logger.info(f"New user registered: {username}")
+        flash('Your account has been created! You can now log in.', 'success')
+        return redirect(url_for('login'))
+    return render_template('register.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        user = User.query.filter_by(username=username).first()
+        app.logger.info(f"Login attempt for user: {username}")
+        if user:
+            app.logger.info("User found in database")
+            if bcrypt.check_password_hash(user.password, password):
+                app.logger.info("Password is correct")
+                login_user(user)
+                next_page = request.args.get('next')
+                return redirect(next_page) if next_page else redirect(url_for('index'))
+            else:
+                app.logger.info("Password is incorrect")
+        else:
+            app.logger.info("User not found in database")
+        flash('Login unsuccessful. Please check username and password', 'danger')
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
 
 @app.route('/')
+@login_required
 def index():
-    tasks = Task.query.order_by(Task.priority.desc()).all()
+    tasks = Task.query.filter_by(user_id=current_user.id).order_by(Task.priority.desc()).all()
     current_date = datetime.now()
     tasks_by_category = {}
     for task in tasks:
@@ -49,8 +114,8 @@ def index():
 
     return render_template('index.html', tasks_by_category=tasks_by_category)
 
-
 @app.route('/add', methods=['GET', 'POST'])
+@login_required
 def add_task():
     if request.method == 'POST':
         title = request.form['title']
@@ -59,7 +124,7 @@ def add_task():
         due_date_str = request.form['due_date']
         due_date = datetime.strptime(due_date_str, '%Y-%m-%d') if due_date_str else None
         category = request.form['category']
-        new_task = Task(title=title, description=description, priority=priority, due_date=due_date, category=category)
+        new_task = Task(title=title, description=description, priority=priority, due_date=due_date, category=category, user_id=current_user.id)
 
         # Handle subtasks
         subtasks = request.form.getlist('subtasks')
@@ -73,10 +138,10 @@ def add_task():
         return redirect(url_for('index'))
     return render_template('add_task.html')
 
-
 @app.route('/update/<int:id>', methods=['GET', 'POST'])
+@login_required
 def update_task(id):
-    task = Task.query.get_or_404(id)
+    task = Task.query.filter_by(id=id, user_id=current_user.id).first_or_404()
     if request.method == 'POST':
         task.title = request.form['title']
         task.description = request.form['description']
@@ -111,13 +176,15 @@ def update_task(id):
     return render_template('update_task.html', task=task)
 
 @app.route('/delete/<int:id>')
+@login_required
 def delete_task(id):
-    task = Task.query.get_or_404(id)
+    task = Task.query.filter_by(id=id, user_id=current_user.id).first_or_404()
     db.session.delete(task)
     db.session.commit()
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
     with app.app_context():
-        db.create_all()
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
+        db.drop_all()  # This will drop all existing tables
+        db.create_all()  # This will create all tables from scratch
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)), debug=True)
