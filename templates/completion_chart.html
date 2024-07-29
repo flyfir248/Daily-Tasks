@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="chart-container">
+    <h2>Task Completion Rates</h2>
+    <img src="data:image/png;base64,{{ plot_url }}" alt="Task Completion Rates">
+    <a href="{{ url_for('index') }}" class="button">Back to Tasks</a>
+</div>
+{% endblock %}
+

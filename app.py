@@ -4,6 +4,10 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from flask_bcrypt import Bcrypt
 from datetime import datetime
 from flask_migrate import Migrate
+import matplotlib.pyplot as plt
+import seaborn as sns
+from io import BytesIO
+import base64
 import os
 
 app = Flask(__name__)
@@ -119,7 +123,7 @@ def index():
             tasks_by_category[category] = []
         tasks_by_category[category].append(task)
 
-    return render_template('index.html', tasks_by_category=tasks_by_category)
+    return render_template('index.html', tasks_by_category=tasks_by_category, chart_url=url_for('completion_chart'))
 
 @app.route('/add', methods=['GET', 'POST'])
 @login_required
@@ -189,6 +193,25 @@ def delete_task(id):
     db.session.delete(task)
     db.session.commit()
     return redirect(url_for('index'))
+
+@app.route('/completion_chart')
+@login_required
+def completion_chart():
+    tasks = Task.query.filter_by(user_id=current_user.id).all()
+    completed_tasks = sum(1 for task in tasks if task.done)
+    total_tasks = len(tasks)
+    incomplete_tasks = total_tasks - completed_tasks
+
+    fig, ax = plt.subplots()
+    ax.pie([completed_tasks, incomplete_tasks], labels=['Completed', 'Incomplete'], autopct='%1.1f%%', colors=['#4CAF50', '#FF5722'])
+    ax.set_title('Task Completion Rates')
+
+    img = BytesIO()
+    plt.savefig(img, format='png')
+    img.seek(0)
+    plot_url = base64.b64encode(img.getvalue()).decode('utf8')
+
+    return render_template('completion_chart.html', plot_url=plot_url)
 
 if __name__ == '__main__':
     with app.app_context():

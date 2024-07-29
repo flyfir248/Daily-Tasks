@@ -23,3 +23,5 @@ flask-bcrypt
 Flask-Mail
 APScheduler
 markupsafe
+matplotlib
+seaborn

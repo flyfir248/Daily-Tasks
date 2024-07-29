@@ -3,7 +3,9 @@
 {% block content %}
 <div class="tasks-container">
     <h1 class="main-title">Tasks</h1>
-
+    <div class="chart-link">
+        <a href="{{ chart_url }}" class="button chart-btn">View Task Completion Chart</a>
+    </div>
     {% for category, tasks in tasks_by_category.items() %}
     <div class="category-container">
         <h2 class="category-title">{{ category }}</h2>
