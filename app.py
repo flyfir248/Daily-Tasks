@@ -157,16 +157,28 @@ def update_task(id):
         task.title = request.form['title']
         task.description = request.form['description']
         task.priority = int(request.form['priority'])
-        due_date_str = request.form['due_date']
+        #due_date_str = request.form['due_date']
+        due_date_str = request.form.get('due_date')
         task.due_date = datetime.strptime(due_date_str, '%Y-%m-%d') if due_date_str else None
         task.done = 'done' in request.form
         task.category = request.form['category']
+
 
         # Handle subtasks
         existing_subtasks = {subtask.id: subtask for subtask in task.subtasks}
         subtask_contents = request.form.getlist('subtasks')
         subtask_ids = request.form.getlist('subtask_ids')
         subtask_dones = request.form.getlist('subtask_dones')
+
+        if due_date_str:
+            try:
+                task.due_date = datetime.strptime(due_date_str, '%Y-%m-%d')
+            except ValueError:
+                # Handle the case where due_date_str does not match the expected format
+                task.due_date = None
+                flash('Due date format is incorrect. Please enter a date in YYYY-MM-DD format.', 'error')
+        else:
+            task.due_date = None
 
         for i, content in enumerate(subtask_contents):
             if content.strip():
