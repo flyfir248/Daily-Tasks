@@ -20,3 +20,6 @@ WTForms==3.1.2
 zipp==3.19.2
 flask-login
 flask-bcrypt
+Flask-Mail
+APScheduler
+markupsafe
