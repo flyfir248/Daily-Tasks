@@ -36,6 +36,12 @@
                     </div>
                     {% endif %}
                 </div>
+                <div class="task-progress">
+                    <div class="progress-bar">
+                        <div class="progress" style="width: {{ task.progress }}%;"></div>
+                    </div>
+                    <span class="progress-text">{{ task.progress }}% complete</span>
+                </div>
                 <div class="task-actions">
                     <a href="{{ url_for('update_task', id=task.id) }}" class="button update-btn">Update</a>
                     <a href="{{ url_for('delete_task', id=task.id) }}" class="button delete-btn">Delete</a>
@@ -235,6 +241,29 @@
       text-overflow: ellipsis;
     }
 
+    .task-progress {
+    margin-top: 15px;
+    }
+    .progress-bar {
+        width: 100%;
+        background-color: #e0e0e0;
+        height: 20px;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    .progress {
+        height: 100%;
+        background-color: #3498db;
+        transition: width 0.5s ease-in-out;
+    }
+    .progress-text {
+        display: block;
+        text-align: center;
+        margin-top: 5px;
+        font-weight: bold;
+        color: #34495e;
+    }
+
     /* Media queries for responsive design */
     @media (max-width: 600px) {
         .task-title {
@@ -254,6 +283,9 @@ document.querySelectorAll('.subtask-checkbox').forEach(checkbox => {
     checkbox.addEventListener('change', function() {
         const subtaskId = this.id.split('-')[1];
         const isDone = this.checked;
+        const taskItem = this.closest('.task-item');
+        const progressBar = taskItem.querySelector('.progress');
+        const progressText = taskItem.querySelector('.progress-text');
 
         // Send an AJAX request to update the subtask status
         fetch(`/update_subtask/${subtaskId}`, {
@@ -280,6 +312,11 @@ document.querySelectorAll('.subtask-checkbox').forEach(checkbox => {
                         statusSpan.remove();
                     }
                 }
+
+                // Update the progress bar
+                const newProgress = data.new_progress;
+                progressBar.style.width = `${newProgress}%`;
+                progressText.textContent = `${newProgress}% complete`;
             }
         });
     });

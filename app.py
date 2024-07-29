@@ -32,6 +32,13 @@ class Task(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     subtasks = db.relationship('Subtask', backref='task', lazy=True, cascade="all, delete-orphan")
 
+    @property
+    def progress(self):
+        if not self.subtasks:
+            return 100 if self.done else 0
+        completed_subtasks = sum(1 for subtask in self.subtasks if subtask.done)
+        return int((completed_subtasks / len(self.subtasks)) * 100)
+
 class Subtask(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     content = db.Column(db.String(200), nullable=False)
