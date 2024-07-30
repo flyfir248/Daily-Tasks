@@ -52,7 +52,7 @@
                     <h4 class="subtasks-title">Subtasks:</h4>
                     <ul class="subtasks-list">
                         {% for subtask in task.subtasks %}
-                        <li class="subtask-item">
+                        <li class="subtask-item {% if subtask.done %}done{% endif %}">
                             <span class="subtask-content">{{ subtask.content }}</span>
                             {% if subtask.done %}
                             <span class="subtask-status">Done</span>
@@ -77,6 +77,9 @@
         max-width: 800px;
         margin: 0 auto;
         padding: 20px;
+    }
+    .chart-link {
+        text-align: center;
     }
     .main-title {
         font-size: 2.5em;
@@ -112,10 +115,10 @@
         font-size: 1.5em;
         color: #2c3e50;
         margin: 0;
-        white-space: normal; /* Allow text to wrap */
+        white-space: normal;
         overflow: hidden;
         text-overflow: ellipsis;
-        word-wrap: break-word; /* Ensure long words break */
+        word-wrap: break-word;
     }
     .task-body {
         margin-bottom: 15px;
@@ -162,11 +165,14 @@
     }
     .button {
         display: inline-block;
-        padding: 8px 15px;
+        padding: 10px 20px;
         margin-right: 10px;
         text-decoration: none;
         color: white;
         border-radius: 4px;
+        border: none;
+        cursor: pointer;
+        font-size: 1em;
     }
     .update-btn {
         background-color: #3498db;
@@ -175,7 +181,10 @@
         background-color: #e74c3c;
     }
     .subtasks-container {
-        margin-top: 15px;
+        margin-top: 20px;
+        background-color: #f0f8ff;
+        border-radius: 8px;
+        padding: 15px;
     }
     .subtasks-title {
         font-size: 1.2em;
@@ -183,27 +192,37 @@
         margin-bottom: 10px;
     }
     .subtasks-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+        gap: 10px;
+        padding: 0;
         list-style-type: none;
-        padding-left: 20px;
-        overflow: hidden; /* Remove the vertical scroll */
     }
     .subtask-item {
-        margin-bottom: 5px;
-        word-wrap: break-word;
-        overflow-wrap: break-word;
+        background-color: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 10px;
         display: flex;
-        justify-content: space-between;
+        flex-direction: column;
         align-items: center;
+        justify-content: center;
+        text-align: center;
+        min-height: 80px;
     }
     .subtask-content {
-        margin-right: 10px;
+        margin-bottom: 5px;
+        font-weight: bold;
     }
     .subtask-status {
         background-color: #2ecc71;
         color: white;
-        padding: 2px 5px;
-        border-radius: 3px;
+        padding: 2px 6px;
+        border-radius: 4px;
         font-size: 0.8em;
+    }
+    .subtask-item.done {
+        background-color: #e6ffe6;
     }
     .add-task-container {
         text-align: center;
@@ -214,37 +233,31 @@
         font-size: 1.2em;
         padding: 10px 20px;
     }
-
     .task-form {
-      max-width: 800px; /* Adjust as needed */
-      margin: 0 auto;
+        max-width: 800px;
+        margin: 0 auto;
     }
-
     .form-group input,
     .form-group textarea,
     .form-group select {
-      width: 100%;
-      max-width: 100%;
-      padding: 10px;
-      box-sizing: border-box;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
+        width: 100%;
+        max-width: 100%;
+        padding: 10px;
+        box-sizing: border-box;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
     }
-
     .form-group textarea {
-      min-height: 100px;
-      resize: vertical;
+        min-height: 100px;
+        resize: vertical;
     }
-
-    /* For single-line inputs that might overflow */
     .form-group input[type="text"] {
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
-
     .task-progress {
-    margin-top: 15px;
+        margin-top: 15px;
     }
     .progress-bar {
         width: 100%;
@@ -265,8 +278,6 @@
         font-weight: bold;
         color: #34495e;
     }
-
-    /* Media queries for responsive design */
     @media (max-width: 600px) {
         .task-title {
             font-size: 1.2em;
@@ -277,51 +288,13 @@
         .main-title {
             font-size: 2em;
         }
+        .button {
+            padding: 8px 15px;
+            font-size: 0.9em;
+        }
+        .subtasks-list {
+            grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+        }
     }
 </style>
-
-<script>
-document.querySelectorAll('.subtask-checkbox').forEach(checkbox => {
-    checkbox.addEventListener('change', function() {
-        const subtaskId = this.id.split('-')[1];
-        const isDone = this.checked;
-        const taskItem = this.closest('.task-item');
-        const progressBar = taskItem.querySelector('.progress');
-        const progressText = taskItem.querySelector('.progress-text');
-
-        // Send an AJAX request to update the subtask status
-        fetch(`/update_subtask/${subtaskId}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ done: isDone }),
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Update the UI to reflect the new status
-                const statusSpan = this.nextElementSibling.querySelector('.subtask-status');
-                if (isDone) {
-                    if (!statusSpan) {
-                        const newStatusSpan = document.createElement('span');
-                        newStatusSpan.className = 'subtask-status';
-                        newStatusSpan.textContent = 'Done';
-                        this.nextElementSibling.appendChild(newStatusSpan);
-                    }
-                } else {
-                    if (statusSpan) {
-                        statusSpan.remove();
-                    }
-                }
-
-                // Update the progress bar
-                const newProgress = data.new_progress;
-                progressBar.style.width = `${newProgress}%`;
-                progressText.textContent = `${newProgress}% complete`;
-            }
-        });
-    });
-});
-</script>
 {% endblock %}
