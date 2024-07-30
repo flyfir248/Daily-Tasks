@@ -2,9 +2,84 @@
 
 {% block content %}
 <div class="chart-container">
-    <h2>Task Completion Rates</h2>
-    <img src="data:image/png;base64,{{ plot_url }}" alt="Task Completion Rates">
+    <h1>Task Completion Analysis</h1>
+    <div class="chart-wrapper">
+        <img src="data:image/png;base64,{{ plot_url }}" alt="Task Completion Rates" class="chart-image">
+    </div>
+    <div class="chart-description">
+        <p>This chart displays the distribution of completed and incomplete tasks in your to-do list.</p>
+    </div>
+    <div class="analysis-button-container">
+        <a href="{{ url_for('task_analysis') }}" class="button analysis-button">View Task Analysis</a>
+    </div>
     <a href="{{ url_for('index') }}" class="button">Back to Tasks</a>
 </div>
-{% endblock %}
+<style>
+.chart-container {
+    max-width: 800px;
+    margin: 2rem auto;
+    padding: 2rem;
+    background-color: #ffffff;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+}
 
+h1 {
+    color: #333;
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.chart-wrapper {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+}
+
+.chart-image {
+    max-width: 100%;
+    height: auto;
+}
+
+.chart-description {
+    text-align: center;
+    color: #666;
+    margin-bottom: 1.5rem;
+}
+
+.button {
+    display: block;
+    width: 200px;
+    margin: 0 auto;
+    padding: 0.75rem 1rem;
+    background-color: #007bff;
+    color: white;
+    text-align: center;
+    text-decoration: none;
+    border-radius: 4px;
+    transition: background-color 0.3s ease;
+}
+
+.button:hover {
+    background-color: #0056b3;
+}
+.analysis-button-container {
+    text-align: center;
+    margin-top: 2rem;
+}
+
+.analysis-button {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    background-color: #17a2b8;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    transition: background-color 0.3s ease;
+}
+
+.analysis-button:hover {
+    background-color: #138496;
+}
+</style>
+{% endblock %}

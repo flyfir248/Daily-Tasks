@@ -2,10 +2,11 @@ from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_bcrypt import Bcrypt
-from datetime import datetime
+from datetime import datetime,timedelta
 from flask_migrate import Migrate
 import matplotlib.pyplot as plt
 import seaborn as sns
+import pandas as pd
 from io import BytesIO
 import base64
 import os
@@ -214,16 +215,92 @@ def completion_chart():
     total_tasks = len(tasks)
     incomplete_tasks = total_tasks - completed_tasks
 
-    fig, ax = plt.subplots()
-    ax.pie([completed_tasks, incomplete_tasks], labels=['Completed', 'Incomplete'], autopct='%1.1f%%', colors=['#4CAF50', '#FF5722'])
-    ax.set_title('Task Completion Rates')
+    # Set the style for a more professional look
+    sns.set_style("whitegrid")
+    plt.figure(figsize=(10, 6))
 
+    # Create a more appealing color palette
+    colors = sns.color_palette("deep", 2)
+
+    # Create the pie chart
+    plt.pie([completed_tasks, incomplete_tasks],
+            labels=['Completed', 'Incomplete'],
+            autopct='%1.1f%%',
+            colors=colors,
+            startangle=90,
+            wedgeprops={'edgecolor': 'white', 'linewidth': 2})
+
+    # Add a title with custom font
+    plt.title('Task Completion Rates', fontsize=18, fontweight='bold', pad=20)
+
+    # Add a subtle shadow for depth
+    plt.gca().add_artist(plt.Circle((0,0), 0.7, fc='white'))
+
+    # Save the plot
     img = BytesIO()
-    plt.savefig(img, format='png')
+    plt.savefig(img, format='png', dpi=300, bbox_inches='tight', transparent=True)
     img.seek(0)
     plot_url = base64.b64encode(img.getvalue()).decode('utf8')
 
     return render_template('completion_chart.html', plot_url=plot_url)
+
+
+@app.route('/task_analysis')
+@login_required
+def task_analysis():
+    tasks = Task.query.filter_by(user_id=current_user.id).all()
+
+    # Create a DataFrame with available attributes
+    df = pd.DataFrame([(task.title, task.done, task.due_date) for task in tasks],
+                      columns=['title', 'done', 'due_date'])
+
+    # Basic statistics
+    total_tasks = len(df)
+    completed_tasks = df['done'].sum()
+    completion_rate = completed_tasks / total_tasks * 100 if total_tasks > 0 else 0
+
+    # Create visualizations
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 12))
+
+    # 1. Pie chart for completion rate
+    colors = sns.color_palette("deep", 2)
+    ax1.pie([completed_tasks, total_tasks - completed_tasks],
+            labels=['Completed', 'Incomplete'],
+            autopct='%1.1f%%',
+            colors=colors,
+            startangle=90,
+            wedgeprops={'edgecolor': 'white', 'linewidth': 2})
+    ax1.set_title('Task Completion Rate', fontsize=16, fontweight='bold')
+
+    # 2. Bar chart for tasks by due date (if available)
+    if 'due_date' in df.columns and df['due_date'].notna().any():
+        df['due_date'] = pd.to_datetime(df['due_date'])
+        df['due_month'] = df['due_date'].dt.to_period('M')
+        tasks_by_month = df.groupby('due_month').size()
+        tasks_by_month.plot(kind='bar', ax=ax2, color=sns.color_palette("deep", 1))
+        ax2.set_title('Tasks by Due Date Month', fontsize=16, fontweight='bold')
+        ax2.set_xlabel('Month')
+        ax2.set_ylabel('Number of Tasks')
+    else:
+        ax2.text(0.5, 0.5, 'No due date data available', ha='center', va='center', fontsize=14)
+        ax2.axis('off')
+
+    plt.tight_layout()
+
+    # Save the plot
+    img = BytesIO()
+    plt.savefig(img, format='png', dpi=300, bbox_inches='tight')
+    img.seek(0)
+    plot_url = base64.b64encode(img.getvalue()).decode('utf8')
+
+    # Prepare analysis results
+    analysis = {
+        'total_tasks': total_tasks,
+        'completed_tasks': completed_tasks,
+        'completion_rate': f"{completion_rate:.1f}%",
+    }
+
+    return render_template('task_analysis.html', plot_url=plot_url, analysis=analysis)
 
 if __name__ == '__main__':
     with app.app_context():

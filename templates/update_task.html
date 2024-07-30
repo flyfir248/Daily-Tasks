@@ -64,16 +64,8 @@
         <button type="submit" class="submit-btn">Update Task</button>
     </form>
 </div>
-
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    flatpickr("#due_date", {
-        dateFormat: "Y-m-d",
-        defaultDate: "{{ task.due_date }}"
-    });
-});
-
 document.getElementById('subtasks').addEventListener('click', function(e) {
     if (e.target.classList.contains('add-subtask')) {
         const newSubtaskEntry = document.createElement('div');
