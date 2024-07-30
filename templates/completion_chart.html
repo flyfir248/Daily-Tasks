@@ -11,8 +11,8 @@
     </div>
     <div class="analysis-button-container">
         <a href="{{ url_for('task_analysis') }}" class="button analysis-button">View Task Analysis</a>
+        <a href="{{ url_for('index') }}" class="button">Back to Tasks</a>
     </div>
-    <a href="{{ url_for('index') }}" class="button">Back to Tasks</a>
 </div>
 <style>
 .chart-container {
@@ -66,6 +66,12 @@ h1 {
 .analysis-button-container {
     text-align: center;
     margin-top: 2rem;
+    justify-content: space-between;
+    flex-direction: column;
+}
+
+.button + .button {
+    margin-top: 20px; /* Adjust the margin value as needed */
 }
 
 .analysis-button {

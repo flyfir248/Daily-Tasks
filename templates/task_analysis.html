@@ -30,20 +30,13 @@
             <li>Your overall task completion rate is {{ analysis.completion_rate }}.</li>
         </ul>
     </div>
-
-    <a href="{{ url_for('index') }}" class="button">Back to Tasks</a>
+    <div class="analysis-button-container">
+        <a href="{{ url_for('index') }}" class="button">Home</a>
+        <a href="{{  url_for('completion_chart') }}" class="button chart-btn">Go back</a>
+    </div>
 </div>
 
 <style>
-  .analysis-container {
-    max-width: 1000px;
-    margin: 2rem auto;
-    padding: 2rem;
-    background-color: #ffffff;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    border-radius: 8px;
-}
-
 h1, h2 {
     color: #333;
     text-align: center;
@@ -117,6 +110,24 @@ h1, h2 {
 
 .button:hover {
     background-color: #0056b3;
+}
+
+.button + .button {
+    margin-top: 20px; /* Adjust the margin value as needed */
+}
+
+.analysis-button {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    background-color: #17a2b8;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    transition: background-color 0.3s ease;
+}
+
+.analysis-button:hover {
+    background-color: #138496;
 }
 </style>
 {% endblock %}
