@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, make_response
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_bcrypt import Bcrypt
@@ -7,9 +7,11 @@ from flask_migrate import Migrate
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
-from io import BytesIO
+from io import BytesIO,StringIO
 import base64
 import os
+import csv
+import json
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///tasks.db'
@@ -222,19 +224,27 @@ def completion_chart():
     # Create a more appealing color palette
     colors = sns.color_palette("deep", 2)
 
-    # Create the pie chart
-    plt.pie([completed_tasks, incomplete_tasks],
-            labels=['Completed', 'Incomplete'],
-            autopct='%1.1f%%',
-            colors=colors,
-            startangle=90,
-            wedgeprops={'edgecolor': 'white', 'linewidth': 2})
+    if total_tasks == 0:
+        # Handle the case when there are no tasks
+        plt.text(0.5, 0.5, 'No tasks available',
+                 horizontalalignment='center',
+                 verticalalignment='center',
+                 fontsize=20, color='gray')
+        plt.axis('off')
+    else:
+        # Create the pie chart
+        plt.pie([completed_tasks, incomplete_tasks],
+                labels=['Completed', 'Incomplete'],
+                autopct='%1.1f%%',
+                colors=colors,
+                startangle=90,
+                wedgeprops={'edgecolor': 'white', 'linewidth': 2})
 
-    # Add a title with custom font
-    plt.title('Task Completion Rates', fontsize=18, fontweight='bold', pad=20)
+        # Add a title with custom font
+        plt.title('Task Completion Rates', fontsize=18, fontweight='bold', pad=20)
 
-    # Add a subtle shadow for depth
-    plt.gca().add_artist(plt.Circle((0,0), 0.7, fc='white'))
+        # Add a subtle shadow for depth
+        plt.gca().add_artist(plt.Circle((0,0), 0.7, fc='white'))
 
     # Save the plot
     img = BytesIO()
@@ -249,6 +259,28 @@ def completion_chart():
 @login_required
 def task_analysis():
     tasks = Task.query.filter_by(user_id=current_user.id).all()
+
+    if not tasks:
+        # Handle case when there are no tasks
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.text(0.5, 0.5, 'No tasks available',
+                horizontalalignment='center',
+                verticalalignment='center',
+                fontsize=20, color='gray')
+        ax.axis('off')
+
+        img = BytesIO()
+        plt.savefig(img, format='png', dpi=300, bbox_inches='tight')
+        img.seek(0)
+        plot_url = base64.b64encode(img.getvalue()).decode('utf8')
+
+        analysis = {
+            'total_tasks': 0,
+            'completed_tasks': 0,
+            'completion_rate': "0.0%",
+        }
+
+        return render_template('task_analysis.html', plot_url=plot_url, analysis=analysis)
 
     # Create a DataFrame with available attributes
     df = pd.DataFrame([(task.title, task.done, task.due_date) for task in tasks],
@@ -312,6 +344,54 @@ def settings():
         flash(f'Settings updated. Reminder days set to {reminder_days}', 'success')
         return redirect(url_for('settings'))
     return render_template('settings.html')
+
+
+@app.route('/export_tasks', methods=['GET'])
+@login_required
+def export_tasks():
+    format = request.args.get('format', 'csv')
+    tasks = Task.query.filter_by(user_id=current_user.id).all()
+
+    if format == 'csv':
+        return export_tasks_csv(tasks)
+    elif format == 'json':
+        return export_tasks_json(tasks)
+    else:
+        flash('Invalid format specified', 'danger')
+        return redirect(url_for('index'))
+
+
+def export_tasks_csv(tasks):
+    si = StringIO()
+    cw = csv.writer(si)
+    cw.writerow(['ID', 'Title', 'Description', 'Done', 'Priority', 'Due Date', 'Category'])
+    for task in tasks:
+        cw.writerow([task.id, task.title, task.description, task.done, task.priority, task.due_date, task.category])
+
+    output = make_response(si.getvalue())
+    output.headers["Content-Disposition"] = "attachment; filename=tasks.csv"
+    output.headers["Content-type"] = "text/csv"
+    return output
+
+
+def export_tasks_json(tasks):
+    tasks_list = []
+    for task in tasks:
+        task_data = {
+            'ID': task.id,
+            'Title': task.title,
+            'Description': task.description,
+            'Done': task.done,
+            'Priority': task.priority,
+            'Due Date': task.due_date.isoformat() if task.due_date else None,
+            'Category': task.category
+        }
+        tasks_list.append(task_data)
+
+    output = make_response(json.dumps(tasks_list, indent=4))
+    output.headers["Content-Disposition"] = "attachment; filename=tasks.json"
+    output.headers["Content-type"] = "application/json"
+    return output
 
 if __name__ == '__main__':
     with app.app_context():

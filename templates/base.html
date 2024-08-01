@@ -38,24 +38,25 @@
             position: fixed;
             z-index: 1;
             top: 0;
-            left: -250px;
-            background-color: #111;
+            left: 0;
+            background-color: #2c3e50;  /* Dark blue background */
             overflow-x: hidden;
-            transition: 0.5s;
-            padding-top: 60px;
+            padding-top: 20px;
+            color: #ecf0f1;  /* Light gray text */
         }
 
         .sidebar a {
             padding: 8px 8px 8px 32px;
             text-decoration: none;
             font-size: 18px;
-            color: #818181;
+            color: #ecf0f1;  /* Light gray text */
             display: block;
             transition: 0.3s;
         }
 
         .sidebar a:hover {
-            color: #f1f1f1;
+            color: #3498db;  /* Bright blue on hover */
+            background-color: #34495e;  /* Slightly lighter background on hover */
         }
 
         .sidebar .closebtn {
@@ -65,7 +66,6 @@
             font-size: 36px;
             margin-left: 50px;
         }
-
         .openbtn {
             font-size: 20px;
             cursor: pointer;
@@ -88,21 +88,99 @@
             .sidebar {padding-top: 15px;}
             .sidebar a {font-size: 18px;}
         }
+
+        /* Dark mode styles */
+        body.dark-mode {
+            background-color: #121212;
+            color: #ffffff;
+        }
+
+        .container.dark-mode {
+            background-color: #333333;
+            border-color: #444444;
+        }
+
+        .footer p {
+            color: dark;
+            font-family: 'Times New Roman', Times, serif;
+        }
+
+        .sidebar-section {
+            padding: 20px;
+            border-top: 1px solid #34495e;  /* Slightly lighter border */
+        }
+
+        .sidebar-section h2 {
+            font-size: 20px;
+            margin-bottom: 15px;
+            color: #3498db;  /* Bright blue headers */
+        }
+
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #34495e;
+            border-radius: 4px;
+            background-color: #34495e;  /* Slightly lighter input background */
+            color: #ecf0f1;  /* Light gray text */
+        }
+
+        .btn-primary {
+            background-color: #3498db;  /* Bright blue button */
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .btn-primary:hover {
+            background-color: #2980b9;  /* Darker blue on hover */
+        }
+
+        .auth-links {
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
     <div id="mySidebar" class="sidebar">
-        <a href="javascript:void(0)" class="closebtn" onclick="closeNav()">&times;</a>
+    <a href="javascript:void(0)" class="closebtn" onclick="closeNav()">&times;</a>
+
+    <nav class="sidebar-nav">
         <a href="{{ url_for('index') }}">Home</a>
         <a href="{{ url_for('add_task') }}">Add Task</a>
         <a href="{{ url_for('task_analysis') }}">Task Analysis</a>
         <a href="{{ url_for('settings') }}">Settings</a>
+    </nav>
+
+    <div class="sidebar-section">
+        <a>Export Your Tasks</a>
+        <form method="GET" action="{{ url_for('export_tasks') }}">
+            <div class="form-group">
+                <label text-align=center for="format">Select format:</label>
+                <select id="format" name="format" class="form-control">
+                    <option value="csv">CSV</option>
+                    <option value="json">JSON</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Export</button>
+        </form>
+    </div>
+
+    <div class="sidebar-section auth-links">
         {% if current_user.is_authenticated %}
             <a href="{{ url_for('logout') }}">Logout</a>
         {% else %}
             <a href="{{ url_for('login') }}">Login</a>
             <a href="{{ url_for('register') }}">Register</a>
         {% endif %}
+    </div>
     </div>
 
     <div id="main">
@@ -134,15 +212,18 @@
             const darkMode = localStorage.getItem('darkMode');
             if (darkMode === 'enabled') {
                 document.body.classList.add('dark-mode');
+                document.querySelector('.container').classList.add('dark-mode');
                 toggle.checked = true;
             }
 
             toggle.addEventListener('change', function() {
                 if (this.checked) {
                     document.body.classList.add('dark-mode');
+                    document.querySelector('.container').classList.add('dark-mode');
                     localStorage.setItem('darkMode', 'enabled');
                 } else {
                     document.body.classList.remove('dark-mode');
+                    document.querySelector('.container').classList.remove('dark-mode');
                     localStorage.setItem('darkMode', 'disabled');
                 }
             });
@@ -161,23 +242,20 @@
     <footer class="footer">
         <div class="container">
             <div class="row">
-                <div class="col-md-4">
-
+                <div class="col-md-4"></div>
+                <div class="col-md-4 text-center">
+                    <div></div>
+                    <p>Anoop Johny 🤖</p>
+                    <p>Follow Me</p>
+                    <ul class="social-icons">
+                        <a href="https://www.linkedin.com/in/anoop-johny-30a746181/"><img src="{{ url_for('static', filename='res/linkedin.png') }}" alt="LinkedIn"></a>
+                        <a href="https://github.com/flyfir248"><img src="{{ url_for('static', filename='res/github.png') }}" alt="GitHub"></a>
+                        <a href="https://pythonpythonme.netlify.app/index.html"><img src="{{ url_for('static', filename='res/web.png') }}" alt="Website"></a>
+                        <a href="https://medium.com/@anoopjohny2000"><img src="{{ url_for('static', filename='res/medium.png') }}" alt="Medium"></a>
+                        <a href="https://www.kaggle.com/anoopjohny"><img src="https://cdn3.iconfinder.com/data/icons/logos-and-brands-adobe/512/189_Kaggle-1024.png" alt="Kaggle" width="55" height="55"></a>
+                    </ul>
                 </div>
-            <div class="col-md-4 text-center">
-                <div>
-                </div>
-                <p>Anoop Johny 🤖</p>
-                <p>Follow Me</p>
-                <ul class="social-icons">
-                    <a href="https://www.linkedin.com/in/anoop-johny-30a746181/"><img src="{{ url_for('static', filename='res/linkedin.png') }}" alt="LinkedIn"></a>
-                    <a href="https://github.com/flyfir248"><img src="{{ url_for('static', filename='res/github.png') }}" alt="GitHub"></a>
-                    <a href="https://pythonpythonme.netlify.app/index.html"><img src="{{ url_for('static', filename='res/web.png') }}" alt="Website"></a>
-                    <a href="https://medium.com/@anoopjohny2000"><img src="{{ url_for('static', filename='res/medium.png') }}" alt="Medium"></a>
-                    <a href="https://www.kaggle.com/anoopjohny"><img src="https://cdn3.iconfinder.com/data/icons/logos-and-brands-adobe/512/189_Kaggle-1024.png" alt="The Kaggle App" width="55" height="55"></a>
-                </ul>
             </div>
-        </div>
             <div class="row">
                 <div class="col-md-12">
                     <p class="text-muted">© 2024-2025 PythonPythonME.</p>
