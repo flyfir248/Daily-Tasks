@@ -1,5 +1,6 @@
-# Flask Todo App
+# Daily Tasks Todo App
 
+![img.png](img.png)
 ## Overview
 
 This is a dynamic todo application built using Flask, designed to help users manage and track their tasks efficiently. The app features user authentication, task categorization, subtask management, and various analytical tools to visualize task completion rates and due dates. 
