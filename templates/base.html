@@ -146,6 +146,27 @@
         .auth-links {
             margin-top: 20px;
         }
+
+                /* Add styles for the task history */
+        #taskHistory {
+            display: none;
+            margin-top: 20px;
+        }
+
+        #taskHistory table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        #taskHistory th, #taskHistory td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        #taskHistory th {
+            background-color: #f2f2f2;
+        }
     </style>
 </head>
 <body>
@@ -156,6 +177,7 @@
         <a href="{{ url_for('index') }}">Home</a>
         <a href="{{ url_for('add_task') }}">Add Task</a>
         <a href="{{ url_for('task_analysis') }}">Task Analysis</a>
+        <a href="{{ url_for('task_history') }}" onclick="loadTaskHistory()">Task History</a>
         <a href="{{ url_for('settings') }}">Settings</a>
     </nav>
 
@@ -195,6 +217,22 @@
                     <span style="position: absolute; content: ''; height: 26px; width: 26px; left: 4px; bottom: 4px; background-color: white; border-radius: 50%; transition: 0.4s;"></span>
                 </span>
             </label>
+            <div id="taskHistory">
+                <h2>Task History</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Task</th>
+                            <th>Change Type</th>
+                            <th>Change Time</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody id="taskHistoryBody">
+                        <!-- Task history will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
             {% block content %}{% endblock %}
             <nav style="text-align: center; margin-top: 20px;">
                 {% if current_user.is_authenticated %}
@@ -237,6 +275,27 @@
         function closeNav() {
             document.getElementById("mySidebar").style.left = "-250px";
             document.getElementById("main").style.marginLeft = "0";
+        }
+        function loadTaskHistory() {
+            fetch('/task_history')
+                .then(response => response.json())
+                .then(data => {
+                    const historyBody = document.getElementById('taskHistoryBody');
+                    historyBody.innerHTML = '';
+                    data.forEach(record => {
+                        const row = `
+                            <tr>
+                                <td>${record.task_title}</td>
+                                <td>${record.change_type}</td>
+                                <td>${record.change_time}</td>
+                                <td>${record.details}</td>
+                            </tr>
+                        `;
+                        historyBody.innerHTML += row;
+                    });
+                    document.getElementById('taskHistory').style.display = 'block';
+                })
+                .catch(error => console.error('Error:', error));
         }
     </script>
     <footer class="footer">

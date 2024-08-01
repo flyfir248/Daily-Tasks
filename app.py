@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, make_response
+from flask import Flask, render_template, request, redirect, url_for, flash, make_response, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_bcrypt import Bcrypt
@@ -38,6 +38,25 @@ class Task(db.Model):
     category = db.Column(db.String(50), nullable=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     subtasks = db.relationship('Subtask', backref='task', lazy=True, cascade="all, delete-orphan")
+    history = db.relationship('TaskHistory', backref='task', lazy=True, cascade="all, delete-orphan")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'title': self.title,
+            'description': self.description,
+            'done': self.done,
+            'priority': self.priority,
+            'due_date': self.due_date.isoformat() if self.due_date else None,
+            'category': self.category,
+            'user_id': self.user_id
+        }
+    @property
+    def progress(self):
+        if not self.subtasks:
+            return 100 if self.done else 0
+        completed_subtasks = sum(1 for subtask in self.subtasks if subtask.done)
+        return int((completed_subtasks / len(self.subtasks)) * 100)
 
     @property
     def progress(self):
@@ -128,6 +147,7 @@ def index():
 
     return render_template('index.html', tasks_by_category=tasks_by_category, chart_url=url_for('completion_chart'))
 
+
 @app.route('/add', methods=['GET', 'POST'])
 @login_required
 def add_task():
@@ -136,9 +156,15 @@ def add_task():
         description = request.form['description']
         priority = int(request.form['priority'])
         due_date_str = request.form['due_date']
-        due_date = datetime.strptime(due_date_str, '%Y-%m-%d') if due_date_str else None
+
+        if due_date_str:
+            due_date = datetime.strptime(due_date_str, '%Y-%m-%d')
+        else:
+            due_date = None
+
         category = request.form['category']
-        new_task = Task(title=title, description=description, priority=priority, due_date=due_date, category=category, user_id=current_user.id)
+        new_task = Task(title=title, description=description, priority=priority, due_date=due_date, category=category,
+                        user_id=current_user.id)
 
         # Handle subtasks
         subtasks = request.form.getlist('subtasks')
@@ -149,39 +175,43 @@ def add_task():
 
         db.session.add(new_task)
         db.session.commit()
+
+        # Log task creation in TaskHistory
+        history = TaskHistory(task_id=new_task.id, change_type='created', details=json.dumps(new_task.to_dict()))
+        db.session.add(history)
+        db.session.commit()
+
         return redirect(url_for('index'))
     return render_template('add_task.html')
+
 
 @app.route('/update/<int:id>', methods=['GET', 'POST'])
 @login_required
 def update_task(id):
     task = Task.query.filter_by(id=id, user_id=current_user.id).first_or_404()
     if request.method == 'POST':
+        old_task_data = task.to_dict()  # Save old task data for history
+
         task.title = request.form['title']
         task.description = request.form['description']
         task.priority = int(request.form['priority'])
-        #due_date_str = request.form['due_date']
         due_date_str = request.form.get('due_date')
-        task.due_date = datetime.strptime(due_date_str, '%Y-%m-%d') if due_date_str else None
+
+        if due_date_str:
+            # Manually parse the due date string to ensure no time component
+            due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
+            task.due_date = datetime.combine(due_date, datetime.min.time())
+        else:
+            task.due_date = None
+
         task.done = 'done' in request.form
         task.category = request.form['category']
-
 
         # Handle subtasks
         existing_subtasks = {subtask.id: subtask for subtask in task.subtasks}
         subtask_contents = request.form.getlist('subtasks')
         subtask_ids = request.form.getlist('subtask_ids')
         subtask_dones = request.form.getlist('subtask_dones')
-
-        if due_date_str:
-            try:
-                task.due_date = datetime.strptime(due_date_str, '%Y-%m-%d')
-            except ValueError:
-                # Handle the case where due_date_str does not match the expected format
-                task.due_date = None
-                flash('Due date format is incorrect. Please enter a date in YYYY-MM-DD format.', 'error')
-        else:
-            task.due_date = None
 
         for i, content in enumerate(subtask_contents):
             if content.strip():
@@ -198,16 +228,53 @@ def update_task(id):
             db.session.delete(subtask)
 
         db.session.commit()
+
+        # Log task update in TaskHistory
+        new_task_data = task.to_dict()
+        history = TaskHistory(
+            task_id=task.id,
+            change_type='updated',
+            details=json.dumps({
+                'old_data': old_task_data,
+                'new_data': new_task_data
+            })
+        )
+        db.session.add(history)
+        db.session.commit()
+
         return redirect(url_for('index'))
     return render_template('update_task.html', task=task)
-
 @app.route('/delete/<int:id>')
 @login_required
 def delete_task(id):
     task = Task.query.filter_by(id=id, user_id=current_user.id).first_or_404()
+    task_dict = task.to_dict()  # Get the dictionary representation before deletion
     db.session.delete(task)
     db.session.commit()
+
+    # Log task deletion in TaskHistory
+    history = TaskHistory(
+        task_id=id,  # Use the id directly as task object is deleted
+        change_type='deleted',
+        details=json.dumps(task_dict)
+    )
+    db.session.add(history)
+    db.session.commit()
+
     return redirect(url_for('index'))
+
+@app.route('/task_history')
+@login_required
+def task_history():
+    history = TaskHistory.query.filter_by(task_id=current_user.id).order_by(TaskHistory.change_time.desc()).all()
+    history_data = [{
+        'task_title': record.task.title,
+        'change_type': record.change_type,
+        'change_time': record.change_time.strftime('%Y-%m-%d %H:%M:%S'),
+        'details': record.details
+    } for record in history]
+    return jsonify(history_data)
+
 
 @app.route('/completion_chart')
 @login_required
@@ -259,6 +326,7 @@ def completion_chart():
 @login_required
 def task_analysis():
     tasks = Task.query.filter_by(user_id=current_user.id).all()
+    history = TaskHistory.query.filter(TaskHistory.task_id.in_([task.id for task in tasks])).all()
 
     if not tasks:
         # Handle case when there are no tasks
@@ -305,27 +373,25 @@ def task_analysis():
     ax1.set_title('Task Completion Rate', fontsize=16, fontweight='bold')
 
     # 2. Bar chart for tasks by due date (if available)
-    if 'due_date' in df.columns and df['due_date'].notna().any():
+    if 'due_date' in df.columns:
         df['due_date'] = pd.to_datetime(df['due_date'])
-        df['due_month'] = df['due_date'].dt.to_period('M')
-        tasks_by_month = df.groupby('due_month').size()
-        tasks_by_month.plot(kind='bar', ax=ax2, color=sns.color_palette("deep", 1))
-        ax2.set_title('Tasks by Due Date Month', fontsize=16, fontweight='bold')
-        ax2.set_xlabel('Month')
-        ax2.set_ylabel('Number of Tasks')
-    else:
-        ax2.text(0.5, 0.5, 'No due date data available', ha='center', va='center', fontsize=14)
-        ax2.axis('off')
+        df['due_date'] = df['due_date'].dt.date  # Extract date part only
+        due_date_counts = df['due_date'].value_counts().sort_index()
+
+        due_date_counts.plot(kind='bar', ax=ax2, color=colors[1], edgecolor='white')
+        ax2.set_xlabel('Due Date', fontsize=14, fontweight='bold')
+        ax2.set_ylabel('Number of Tasks', fontsize=14, fontweight='bold')
+        ax2.set_title('Tasks by Due Date', fontsize=16, fontweight='bold')
+        ax2.tick_params(axis='x', rotation=45)
 
     plt.tight_layout()
 
-    # Save the plot
+    # Save the plot as a base64-encoded string
     img = BytesIO()
     plt.savefig(img, format='png', dpi=300, bbox_inches='tight')
     img.seek(0)
     plot_url = base64.b64encode(img.getvalue()).decode('utf8')
 
-    # Prepare analysis results
     analysis = {
         'total_tasks': total_tasks,
         'completed_tasks': completed_tasks,
@@ -333,6 +399,7 @@ def task_analysis():
     }
 
     return render_template('task_analysis.html', plot_url=plot_url, analysis=analysis)
+
 
 @app.route('/settings', methods=['GET', 'POST'])
 @login_required
@@ -392,6 +459,15 @@ def export_tasks_json(tasks):
     output.headers["Content-Disposition"] = "attachment; filename=tasks.json"
     output.headers["Content-type"] = "application/json"
     return output
+
+
+
+class TaskHistory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=False)
+    change_type = db.Column(db.String(50), nullable=False)  # e.g., 'created', 'updated', 'completed', 'deleted'
+    change_time = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    details = db.Column(db.Text, nullable=True)
 
 if __name__ == '__main__':
     with app.app_context():

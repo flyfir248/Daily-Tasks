@@ -1,0 +1,25 @@
+{% extends "layout.html" %}
+
+{% block content %}
+    <h2>Task History</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Task</th>
+                <th>Change Type</th>
+                <th>Change Time</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for record in history %}
+                <tr>
+                    <td>{{ record.task.title }}</td>
+                    <td>{{ record.change_type }}</td>
+                    <td>{{ record.change_time }}</td>
+                    <td>{{ record.details }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}
