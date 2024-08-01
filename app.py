@@ -302,6 +302,17 @@ def task_analysis():
 
     return render_template('task_analysis.html', plot_url=plot_url, analysis=analysis)
 
+@app.route('/settings', methods=['GET', 'POST'])
+@login_required
+def settings():
+    if request.method == 'POST':
+        reminder_days = request.form.get('reminder_days', type=int)
+        # Save the settings to the user's profile or a separate settings table
+        # For now, we'll just flash a message
+        flash(f'Settings updated. Reminder days set to {reminder_days}', 'success')
+        return redirect(url_for('settings'))
+    return render_template('settings.html')
+
 if __name__ == '__main__':
     with app.app_context():
         db.drop_all()  # This will drop all existing tables
