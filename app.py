@@ -1,9 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, make_response, jsonify
-from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
-from flask_bcrypt import Bcrypt
+from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
-from flask_migrate import Migrate
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
@@ -27,73 +25,28 @@ if not supabase_url or not supabase_key:
 supabase: Client = create_client(supabase_url, supabase_key)
 
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your_fallback_secret_key')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///todo.db')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-db = SQLAlchemy(app)
-bcrypt = Bcrypt(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
-migrate = Migrate(app, db)
 
 
-class User(UserMixin, db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    password = db.Column(db.String(60), nullable=False)
-    tasks = db.relationship('Task', backref='user', lazy=True)
+class User(UserMixin):
+    def __init__(self, id, username):
+        self.id = id
+        self.username = username
 
-
-class Task(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(100), nullable=False)
-    description = db.Column(db.String(200), nullable=True)
-    done = db.Column(db.Boolean, default=False)
-    priority = db.Column(db.Integer, default=1)
-    due_date = db.Column(db.DateTime, nullable=True)
-    category = db.Column(db.String(50), nullable=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    subtasks = db.relationship('Subtask', backref='task', lazy=True, cascade="all, delete-orphan")
-    history = db.relationship('TaskHistory', backref='task', lazy=True, cascade="all, delete-orphan")
-
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'title': self.title,
-            'description': self.description,
-            'done': self.done,
-            'priority': self.priority,
-            'due_date': self.due_date.isoformat() if self.due_date else None,
-            'category': self.category,
-            'user_id': self.user_id
-        }
-
-    @property
-    def progress(self):
-        if not self.subtasks:
-            return 100 if self.done else 0
-        completed_subtasks = sum(1 for subtask in self.subtasks if subtask.done)
-        return int((completed_subtasks / len(self.subtasks)) * 100)
-
-
-class Subtask(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    content = db.Column(db.String(200), nullable=False)
-    done = db.Column(db.Boolean, default=False)
-    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=False)
-
-
-class TaskHistory(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=False)
-    change_type = db.Column(db.String(50), nullable=False)
-    change_time = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    details = db.Column(db.Text, nullable=True)
-
-
+from uuid import UUID
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    try:
+        # Validate that user_id is a valid UUID
+        UUID(user_id)
+        user_data = supabase.table('users').select('*').eq('id', user_id).execute()
+        if user_data.data:
+            return User(id=user_data.data[0]['id'], username=user_data.data[0]['username'])
+    except ValueError:
+        # If user_id is not a valid UUID, handle the error
+        return None
 
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -101,17 +54,20 @@ def register():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        existing_user = User.query.filter_by(username=username).first()
-        if existing_user:
+        hashed_password = generate_password_hash(password)
+
+        existing_user = supabase.table('users').select('*').eq('username', username).execute()
+        if existing_user.data:
             flash('Username already exists. Please choose a different one.', 'danger')
             return redirect(url_for('register'))
-        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
-        user = User(username=username, password=hashed_password)
-        db.session.add(user)
-        db.session.commit()
-        app.logger.info(f"New user registered: {username}")
-        flash('Your account has been created! You can now log in.', 'success')
-        return redirect(url_for('login'))
+
+        new_user = supabase.table('users').insert({'username': username, 'password': hashed_password}).execute()
+        if new_user.data:
+            flash('Your account has been created! You can now log in.', 'success')
+            return redirect(url_for('login'))
+        else:
+            flash('Registration failed. Please try again.', 'danger')
+
     return render_template('register.html')
 
 
@@ -122,9 +78,10 @@ def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        user = User.query.filter_by(username=username).first()
-        app.logger.info(f"Login attempt for user: {username}")
-        if user and bcrypt.check_password_hash(user.password, password):
+
+        user_data = supabase.table('users').select('*').eq('username', username).execute()
+        if user_data.data and check_password_hash(user_data.data[0]['password'], password):
+            user = User(id=user_data.data[0]['id'], username=user_data.data[0]['username'])
             login_user(user)
             next_page = request.args.get('next')
             return redirect(next_page) if next_page else redirect(url_for('index'))
@@ -143,16 +100,18 @@ def logout():
 @app.route('/')
 @login_required
 def index():
-    tasks = Task.query.filter_by(user_id=current_user.id).order_by(Task.priority.desc()).all()
+    tasks = supabase.table('tasks').select('*').eq('user_id', current_user.id).order('priority', desc=True).execute()
     current_date = datetime.now()
     tasks_by_category = {}
-    for task in tasks:
-        if task.done:
-            task.status = 'completed-on-time' if task.due_date and task.due_date >= current_date else 'completed-late'
+    for task in tasks.data:
+        if task['done']:
+            task['status'] = 'completed-on-time' if task['due_date'] and datetime.fromisoformat(
+                task['due_date']) >= current_date else 'completed-late'
         else:
-            task.status = 'overdue' if task.due_date and task.due_date < current_date else 'pending'
+            task['status'] = 'overdue' if task['due_date'] and datetime.fromisoformat(
+                task['due_date']) < current_date else 'pending'
 
-        category = task.category or 'Uncategorized'
+        category = task['category'] or 'Uncategorized'
         if category not in tasks_by_category:
             tasks_by_category[category] = []
         tasks_by_category[category].append(task)
@@ -168,24 +127,37 @@ def add_task():
         description = request.form['description']
         priority = int(request.form['priority'])
         due_date_str = request.form['due_date']
-        due_date = datetime.strptime(due_date_str, '%Y-%m-%d') if due_date_str else None
+        due_date = datetime.strptime(due_date_str, '%Y-%m-%d').isoformat() if due_date_str else None
         category = request.form['category']
 
-        new_task = Task(title=title, description=description, priority=priority,
-                        due_date=due_date, category=category, user_id=current_user.id)
+        new_task = {
+            'title': title,
+            'description': description,
+            'priority': priority,
+            'due_date': due_date,
+            'category': category,
+            'user_id': current_user.id,
+            'done': False
+        }
 
-        subtasks = request.form.getlist('subtasks')
-        for subtask_content in subtasks:
-            if subtask_content.strip():
-                new_subtask = Subtask(content=subtask_content)
-                new_task.subtasks.append(new_subtask)
+        task_result = supabase.table('tasks').insert(new_task).execute()
+        if task_result.data:
+            new_task_id = task_result.data[0]['id']
 
-        db.session.add(new_task)
-        db.session.commit()
+            subtasks = request.form.getlist('subtasks')
+            for subtask_content in subtasks:
+                if subtask_content.strip():
+                    supabase.table('subtasks').insert({
+                        'content': subtask_content,
+                        'done': False,
+                        'task_id': new_task_id
+                    }).execute()
 
-        history = TaskHistory(task_id=new_task.id, change_type='created', details=json.dumps(new_task.to_dict()))
-        db.session.add(history)
-        db.session.commit()
+            supabase.table('task_history').insert({
+                'task_id': new_task_id,
+                'change_type': 'created',
+                'details': json.dumps(new_task)
+            }).execute()
 
         return redirect(url_for('index'))
     return render_template('add_task.html')
@@ -194,73 +166,84 @@ def add_task():
 @app.route('/update/<int:id>', methods=['GET', 'POST'])
 @login_required
 def update_task(id):
-    task = Task.query.filter_by(id=id, user_id=current_user.id).first_or_404()
-    if request.method == 'POST':
-        old_task_data = task.to_dict()
+    task = supabase.table('tasks').select('*').eq('id', id).eq('user_id', current_user.id).execute()
+    if not task.data:
+        return redirect(url_for('index'))
 
-        task.title = request.form['title']
-        task.description = request.form['description']
-        task.priority = int(request.form['priority'])
+    task = task.data[0]
+
+    if request.method == 'POST':
+        old_task_data = task.copy()
+
+        task['title'] = request.form['title']
+        task['description'] = request.form['description']
+        task['priority'] = int(request.form['priority'])
         due_date_str = request.form.get('due_date')
         if due_date_str:
             due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
-            task.due_date = datetime.combine(due_date, datetime.min.time())
+            task['due_date'] = datetime.combine(due_date, datetime.min.time()).isoformat()
         else:
-            task.due_date = None
-        task.done = 'done' in request.form
-        task.category = request.form['category']
+            task['due_date'] = None
+        task['done'] = 'done' in request.form
+        task['category'] = request.form['category']
 
-        existing_subtasks = {subtask.id: subtask for subtask in task.subtasks}
+        supabase.table('tasks').update(task).eq('id', id).execute()
+
         subtask_contents = request.form.getlist('subtasks')
         subtask_ids = request.form.getlist('subtask_ids')
         subtask_dones = request.form.getlist('subtask_dones')
 
+        existing_subtasks = supabase.table('subtasks').select('*').eq('task_id', id).execute()
+        existing_subtasks_dict = {subtask['id']: subtask for subtask in existing_subtasks.data}
+
         for i, content in enumerate(subtask_contents):
             if content.strip():
                 if subtask_ids[i]:
-                    subtask = existing_subtasks.pop(int(subtask_ids[i]))
-                    subtask.content = content
-                    subtask.done = subtask_ids[i] in subtask_dones
+                    subtask_id = int(subtask_ids[i])
+                    supabase.table('subtasks').update({
+                        'content': content,
+                        'done': subtask_id in subtask_dones
+                    }).eq('id', subtask_id).execute()
+                    existing_subtasks_dict.pop(subtask_id, None)
                 else:
-                    new_subtask = Subtask(content=content)
-                    task.subtasks.append(new_subtask)
+                    supabase.table('subtasks').insert({
+                        'content': content,
+                        'done': False,
+                        'task_id': id
+                    }).execute()
 
-        for subtask in existing_subtasks.values():
-            db.session.delete(subtask)
+        for subtask in existing_subtasks_dict.values():
+            supabase.table('subtasks').delete().eq('id', subtask['id']).execute()
 
-        db.session.commit()
-
-        new_task_data = task.to_dict()
-        history = TaskHistory(
-            task_id=task.id,
-            change_type='updated',
-            details=json.dumps({
+        supabase.table('task_history').insert({
+            'task_id': id,
+            'change_type': 'updated',
+            'details': json.dumps({
                 'old_data': old_task_data,
-                'new_data': new_task_data
+                'new_data': task
             })
-        )
-        db.session.add(history)
-        db.session.commit()
+        }).execute()
 
         return redirect(url_for('index'))
-    return render_template('update_task.html', task=task)
+
+    subtasks = supabase.table('subtasks').select('*').eq('task_id', id).execute()
+    return render_template('update_task.html', task=task, subtasks=subtasks.data)
 
 
 @app.route('/delete/<int:id>')
 @login_required
 def delete_task(id):
-    task = Task.query.filter_by(id=id, user_id=current_user.id).first_or_404()
-    task_dict = task.to_dict()
-    db.session.delete(task)
-    db.session.commit()
+    task = supabase.table('tasks').select('*').eq('id', id).eq('user_id', current_user.id).execute()
+    if task.data:
+        task_dict = task.data[0]
+        supabase.table('tasks').delete().eq('id', id).execute()
+        supabase.table('subtasks').delete().eq('task_id', id).execute()
 
-    history = TaskHistory(
-        task_id=id,
-        change_type='deleted',
-        details=json.dumps(task_dict)
-    )
-    db.session.add(history)
-    db.session.commit()
+        supabase.table('task_history').insert({
+            'task_id': id,
+            'change_type': 'deleted',
+            'details': json.dumps(task_dict)
+        }).execute()
 
     return redirect(url_for('index'))
 
@@ -268,23 +251,22 @@ def delete_task(id):
 @app.route('/task_history')
 @login_required
 def task_history():
-    history = TaskHistory.query.join(Task).filter(Task.user_id == current_user.id).order_by(
-        TaskHistory.change_time.desc()).all()
+    history = supabase.table('task_history').select('*,tasks(title)').order('change_time', desc=True).execute()
     history_data = [{
-        'task_title': record.task.title,
-        'change_type': record.change_type,
-        'change_time': record.change_time.strftime('%Y-%m-%d %H:%M:%S'),
-        'details': record.details
-    } for record in history]
+        'task_title': record['tasks']['title'],
+        'change_type': record['change_type'],
+        'change_time': record['change_time'],
+        'details': record['details']
+    } for record in history.data]
     return jsonify(history_data)
 
 
 @app.route('/completion_chart')
 @login_required
 def completion_chart():
-    tasks = Task.query.filter_by(user_id=current_user.id).all()
-    completed_tasks = sum(1 for task in tasks if task.done)
-    total_tasks = len(tasks)
+    tasks = supabase.table('tasks').select('*').eq('user_id', current_user.id).execute()
+    completed_tasks = sum(1 for task in tasks.data if task['done'])
+    total_tasks = len(tasks.data)
     incomplete_tasks = total_tasks - completed_tasks
 
     sns.set_style("whitegrid")
@@ -318,9 +300,9 @@ def completion_chart():
 @app.route('/task_analysis')
 @login_required
 def task_analysis():
-    tasks = Task.query.filter_by(user_id=current_user.id).all()
+    tasks = supabase.table('tasks').select('*').eq('user_id', current_user.id).execute()
 
-    if not tasks:
+    if not tasks.data:
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.text(0.5, 0.5, 'No tasks available',
                 horizontalalignment='center',
@@ -341,19 +323,14 @@ def task_analysis():
 
         return render_template('task_analysis.html', plot_url=plot_url, analysis=analysis)
 
-    # Create a DataFrame with available attributes
-    df = pd.DataFrame([(task.title, task.done, task.due_date) for task in tasks],
-                      columns=['title', 'done', 'due_date'])
+    df = pd.DataFrame(tasks.data)
 
-    # Basic statistics
     total_tasks = len(df)
     completed_tasks = df['done'].sum()
     completion_rate = completed_tasks / total_tasks * 100 if total_tasks > 0 else 0
 
-    # Create visualizations
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 12))
 
-    # 1. Pie chart for completion rate
     colors = sns.color_palette("deep", 2)
     ax1.pie([completed_tasks, total_tasks - completed_tasks],
             labels=['Completed', 'Incomplete'],
@@ -363,10 +340,9 @@ def task_analysis():
             wedgeprops={'edgecolor': 'white', 'linewidth': 2})
     ax1.set_title('Task Completion Rate', fontsize=16, fontweight='bold')
 
-    # 2. Bar chart for tasks by due date (if available)
     if 'due_date' in df.columns:
         df['due_date'] = pd.to_datetime(df['due_date'])
-        df['due_date'] = df['due_date'].dt.date  # Extract date part only
+        df['due_date'] = df['due_date'].dt.date
         due_date_counts = df['due_date'].value_counts().sort_index()
 
         due_date_counts.plot(kind='bar', ax=ax2, color=colors[1], edgecolor='white')
@@ -377,7 +353,6 @@ def task_analysis():
 
     plt.tight_layout()
 
-    # Save the plot as a base64-encoded string
     img = BytesIO()
     plt.savefig(img, format='png', dpi=300, bbox_inches='tight')
     img.seek(0)
@@ -397,23 +372,28 @@ def task_analysis():
 def settings():
     if request.method == 'POST':
         reminder_days = request.form.get('reminder_days', type=int)
-        # Save the settings to the user's profile or a separate settings table
-        # For now, we'll just flash a message
+        # Save the settings to the user's profile in Supabase
+        supabase.table('users').update({'reminder_days': reminder_days}).eq('id', current_user.id).execute()
         flash(f'Settings updated. Reminder days set to {reminder_days}', 'success')
         return redirect(url_for('settings'))
-    return render_template('settings.html')
+
+    # Get current settings from Supabase
+    user_settings = supabase.table('users').select('reminder_days').eq('id', current_user.id).execute()
+    reminder_days = user_settings.data[0]['reminder_days'] if user_settings.data else None
+
+    return render_template('settings.html', reminder_days=reminder_days)
 
 
 @app.route('/export_tasks', methods=['GET'])
 @login_required
 def export_tasks():
     format = request.args.get('format', 'csv')
-    tasks = Task.query.filter_by(user_id=current_user.id).all()
+    tasks = supabase.table('tasks').select('*').eq('user_id', current_user.id).execute()
 
     if format == 'csv':
-        return export_tasks_csv(tasks)
+        return export_tasks_csv(tasks.data)
     elif format == 'json':
-        return export_tasks_json(tasks)
+        return export_tasks_json(tasks.data)
     else:
         flash('Invalid format specified', 'danger')
         return redirect(url_for('index'))
@@ -424,7 +404,8 @@ def export_tasks_csv(tasks):
     cw = csv.writer(si)
     cw.writerow(['ID', 'Title', 'Description', 'Done', 'Priority', 'Due Date', 'Category'])
     for task in tasks:
-        cw.writerow([task.id, task.title, task.description, task.done, task.priority, task.due_date, task.category])
+        cw.writerow([task['id'], task['title'], task['description'], task['done'], task['priority'], task['due_date'],
+                     task['category']])
 
     output = make_response(si.getvalue())
     output.headers["Content-Disposition"] = "attachment; filename=tasks.csv"
@@ -436,13 +417,13 @@ def export_tasks_json(tasks):
     tasks_list = []
     for task in tasks:
         task_data = {
-            'ID': task.id,
-            'Title': task.title,
-            'Description': task.description,
-            'Done': task.done,
-            'Priority': task.priority,
-            'Due Date': task.due_date.isoformat() if task.due_date else None,
-            'Category': task.category
+            'ID': task['id'],
+            'Title': task['title'],
+            'Description': task['description'],
+            'Done': task['done'],
+            'Priority': task['priority'],
+            'Due Date': task['due_date'],
+            'Category': task['category']
         }
         tasks_list.append(task_data)
 
@@ -452,16 +433,5 @@ def export_tasks_json(tasks):
     return output
 
 
-
-#class TaskHistory(db.Model):
-#    id = db.Column(db.Integer, primary_key=True)
-#    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=False)
-#    change_type = db.Column(db.String(50), nullable=False)  # e.g., 'created', 'updated', 'completed', 'deleted'
-#    change_time = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-#    details = db.Column(db.Text, nullable=True)
-
 if __name__ == '__main__':
-    with app.app_context():
-        db.drop_all()  # This will drop all existing tables
-        db.create_all()  # This will create all tables from scratch
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)), debug=True)
