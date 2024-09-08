@@ -25,3 +25,5 @@ APScheduler
 markupsafe
 matplotlib
 seaborn
+psycopg2-binary
+supabase

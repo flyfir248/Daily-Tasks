@@ -2,31 +2,47 @@ from flask import Flask, render_template, request, redirect, url_for, flash, mak
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_bcrypt import Bcrypt
-from datetime import datetime,timedelta
+from datetime import datetime, timedelta
 from flask_migrate import Migrate
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
-from io import BytesIO,StringIO
+from io import BytesIO, StringIO
 import base64
 import os
 import csv
 import json
+from supabase import create_client, Client
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///tasks.db'
-app.config['SECRET_KEY'] = 'your_secret_key'  # Change this to a random secret key
+
+# Supabase setup
+supabase_url = os.environ.get("SUPABASE_URL", "https://jynejmfngqrblrpmzgbr.supabase.co")
+supabase_key = os.environ.get("SUPABASE_KEY",
+                              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp5bmVqbWZuZ3FyYmxycG16Z2JyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjM4ODM5NTEsImV4cCI6MjAzOTQ1OTk1MX0.w_qWvc0o1bICOBZMGL7wA3KEE1elfPDX7oVquVhvchU")
+
+if not supabase_url or not supabase_key:
+    raise ValueError("Supabase URL and key must be set in environment variables.")
+
+supabase: Client = create_client(supabase_url, supabase_key)
+
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your_fallback_secret_key')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///todo.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 migrate = Migrate(app, db)
 
+
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(60), nullable=False)
     tasks = db.relationship('Task', backref='user', lazy=True)
+
 
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -51,12 +67,6 @@ class Task(db.Model):
             'category': self.category,
             'user_id': self.user_id
         }
-    @property
-    def progress(self):
-        if not self.subtasks:
-            return 100 if self.done else 0
-        completed_subtasks = sum(1 for subtask in self.subtasks if subtask.done)
-        return int((completed_subtasks / len(self.subtasks)) * 100)
 
     @property
     def progress(self):
@@ -64,6 +74,7 @@ class Task(db.Model):
             return 100 if self.done else 0
         completed_subtasks = sum(1 for subtask in self.subtasks if subtask.done)
         return int((completed_subtasks / len(self.subtasks)) * 100)
+
 
 class Subtask(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -71,9 +82,19 @@ class Subtask(db.Model):
     done = db.Column(db.Boolean, default=False)
     task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=False)
 
+
+class TaskHistory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=False)
+    change_type = db.Column(db.String(50), nullable=False)
+    change_time = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    details = db.Column(db.Text, nullable=True)
+
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
+
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -93,6 +114,7 @@ def register():
         return redirect(url_for('login'))
     return render_template('register.html')
 
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
@@ -102,25 +124,21 @@ def login():
         password = request.form['password']
         user = User.query.filter_by(username=username).first()
         app.logger.info(f"Login attempt for user: {username}")
-        if user:
-            app.logger.info("User found in database")
-            if bcrypt.check_password_hash(user.password, password):
-                app.logger.info("Password is correct")
-                login_user(user)
-                next_page = request.args.get('next')
-                return redirect(next_page) if next_page else redirect(url_for('index'))
-            else:
-                app.logger.info("Password is incorrect")
+        if user and bcrypt.check_password_hash(user.password, password):
+            login_user(user)
+            next_page = request.args.get('next')
+            return redirect(next_page) if next_page else redirect(url_for('index'))
         else:
-            app.logger.info("User not found in database")
-        flash('Login unsuccessful. Please check username and password', 'danger')
+            flash('Login unsuccessful. Please check username and password', 'danger')
     return render_template('login.html')
+
 
 @app.route('/logout')
 @login_required
 def logout():
     logout_user()
     return redirect(url_for('login'))
+
 
 @app.route('/')
 @login_required
@@ -130,15 +148,9 @@ def index():
     tasks_by_category = {}
     for task in tasks:
         if task.done:
-            if task.due_date and task.due_date >= current_date:
-                task.status = 'completed-on-time'
-            else:
-                task.status = 'completed-late'
+            task.status = 'completed-on-time' if task.due_date and task.due_date >= current_date else 'completed-late'
         else:
-            if task.due_date and task.due_date < current_date:
-                task.status = 'overdue'
-            else:
-                task.status = 'pending'
+            task.status = 'overdue' if task.due_date and task.due_date < current_date else 'pending'
 
         category = task.category or 'Uncategorized'
         if category not in tasks_by_category:
@@ -156,27 +168,21 @@ def add_task():
         description = request.form['description']
         priority = int(request.form['priority'])
         due_date_str = request.form['due_date']
-
-        if due_date_str:
-            due_date = datetime.strptime(due_date_str, '%Y-%m-%d')
-        else:
-            due_date = None
-
+        due_date = datetime.strptime(due_date_str, '%Y-%m-%d') if due_date_str else None
         category = request.form['category']
-        new_task = Task(title=title, description=description, priority=priority, due_date=due_date, category=category,
-                        user_id=current_user.id)
 
-        # Handle subtasks
+        new_task = Task(title=title, description=description, priority=priority,
+                        due_date=due_date, category=category, user_id=current_user.id)
+
         subtasks = request.form.getlist('subtasks')
         for subtask_content in subtasks:
-            if subtask_content.strip():  # Ignore empty subtasks
+            if subtask_content.strip():
                 new_subtask = Subtask(content=subtask_content)
                 new_task.subtasks.append(new_subtask)
 
         db.session.add(new_task)
         db.session.commit()
 
-        # Log task creation in TaskHistory
         history = TaskHistory(task_id=new_task.id, change_type='created', details=json.dumps(new_task.to_dict()))
         db.session.add(history)
         db.session.commit()
@@ -190,24 +196,20 @@ def add_task():
 def update_task(id):
     task = Task.query.filter_by(id=id, user_id=current_user.id).first_or_404()
     if request.method == 'POST':
-        old_task_data = task.to_dict()  # Save old task data for history
+        old_task_data = task.to_dict()
 
         task.title = request.form['title']
         task.description = request.form['description']
         task.priority = int(request.form['priority'])
         due_date_str = request.form.get('due_date')
-
         if due_date_str:
-            # Manually parse the due date string to ensure no time component
             due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
             task.due_date = datetime.combine(due_date, datetime.min.time())
         else:
             task.due_date = None
-
         task.done = 'done' in request.form
         task.category = request.form['category']
 
-        # Handle subtasks
         existing_subtasks = {subtask.id: subtask for subtask in task.subtasks}
         subtask_contents = request.form.getlist('subtasks')
         subtask_ids = request.form.getlist('subtask_ids')
@@ -215,21 +217,19 @@ def update_task(id):
 
         for i, content in enumerate(subtask_contents):
             if content.strip():
-                if subtask_ids[i]:  # Existing subtask
+                if subtask_ids[i]:
                     subtask = existing_subtasks.pop(int(subtask_ids[i]))
                     subtask.content = content
                     subtask.done = subtask_ids[i] in subtask_dones
-                else:  # New subtask
+                else:
                     new_subtask = Subtask(content=content)
                     task.subtasks.append(new_subtask)
 
-        # Remove subtasks that were deleted
         for subtask in existing_subtasks.values():
             db.session.delete(subtask)
 
         db.session.commit()
 
-        # Log task update in TaskHistory
         new_task_data = task.to_dict()
         history = TaskHistory(
             task_id=task.id,
@@ -244,17 +244,18 @@ def update_task(id):
 
         return redirect(url_for('index'))
     return render_template('update_task.html', task=task)
+
+
 @app.route('/delete/<int:id>')
 @login_required
 def delete_task(id):
     task = Task.query.filter_by(id=id, user_id=current_user.id).first_or_404()
-    task_dict = task.to_dict()  # Get the dictionary representation before deletion
+    task_dict = task.to_dict()
     db.session.delete(task)
     db.session.commit()
 
-    # Log task deletion in TaskHistory
     history = TaskHistory(
-        task_id=id,  # Use the id directly as task object is deleted
+        task_id=id,
         change_type='deleted',
         details=json.dumps(task_dict)
     )
@@ -263,10 +264,12 @@ def delete_task(id):
 
     return redirect(url_for('index'))
 
+
 @app.route('/task_history')
 @login_required
 def task_history():
-    history = TaskHistory.query.filter_by(task_id=current_user.id).order_by(TaskHistory.change_time.desc()).all()
+    history = TaskHistory.query.join(Task).filter(Task.user_id == current_user.id).order_by(
+        TaskHistory.change_time.desc()).all()
     history_data = [{
         'task_title': record.task.title,
         'change_type': record.change_type,
@@ -284,36 +287,26 @@ def completion_chart():
     total_tasks = len(tasks)
     incomplete_tasks = total_tasks - completed_tasks
 
-    # Set the style for a more professional look
     sns.set_style("whitegrid")
     plt.figure(figsize=(10, 6))
-
-    # Create a more appealing color palette
     colors = sns.color_palette("deep", 2)
 
     if total_tasks == 0:
-        # Handle the case when there are no tasks
         plt.text(0.5, 0.5, 'No tasks available',
                  horizontalalignment='center',
                  verticalalignment='center',
                  fontsize=20, color='gray')
         plt.axis('off')
     else:
-        # Create the pie chart
         plt.pie([completed_tasks, incomplete_tasks],
                 labels=['Completed', 'Incomplete'],
                 autopct='%1.1f%%',
                 colors=colors,
                 startangle=90,
                 wedgeprops={'edgecolor': 'white', 'linewidth': 2})
-
-        # Add a title with custom font
         plt.title('Task Completion Rates', fontsize=18, fontweight='bold', pad=20)
+        plt.gca().add_artist(plt.Circle((0, 0), 0.7, fc='white'))
 
-        # Add a subtle shadow for depth
-        plt.gca().add_artist(plt.Circle((0,0), 0.7, fc='white'))
-
-    # Save the plot
     img = BytesIO()
     plt.savefig(img, format='png', dpi=300, bbox_inches='tight', transparent=True)
     img.seek(0)
@@ -326,10 +319,8 @@ def completion_chart():
 @login_required
 def task_analysis():
     tasks = Task.query.filter_by(user_id=current_user.id).all()
-    history = TaskHistory.query.filter(TaskHistory.task_id.in_([task.id for task in tasks])).all()
 
     if not tasks:
-        # Handle case when there are no tasks
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.text(0.5, 0.5, 'No tasks available',
                 horizontalalignment='center',
@@ -462,12 +453,12 @@ def export_tasks_json(tasks):
 
 
 
-class TaskHistory(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=False)
-    change_type = db.Column(db.String(50), nullable=False)  # e.g., 'created', 'updated', 'completed', 'deleted'
-    change_time = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    details = db.Column(db.Text, nullable=True)
+#class TaskHistory(db.Model):
+#    id = db.Column(db.Integer, primary_key=True)
+#    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=False)
+#    change_type = db.Column(db.String(50), nullable=False)  # e.g., 'created', 'updated', 'completed', 'deleted'
+#    change_time = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+#    details = db.Column(db.Text, nullable=True)
 
 if __name__ == '__main__':
     with app.app_context():
