@@ -11,6 +11,7 @@ import os
 import csv
 import json
 from supabase import create_client, Client
+from uuid import UUID
 
 app = Flask(__name__)
 
@@ -35,17 +36,16 @@ class User(UserMixin):
         self.id = id
         self.username = username
 
-from uuid import UUID
+
 @login_manager.user_loader
 def load_user(user_id):
     try:
-        # Validate that user_id is a valid UUID
-        UUID(user_id)
+        # Validate if user_id is a valid UUID
+        UUID(user_id, version=4)
         user_data = supabase.table('users').select('*').eq('id', user_id).execute()
         if user_data.data:
             return User(id=user_data.data[0]['id'], username=user_data.data[0]['username'])
     except ValueError:
-        # If user_id is not a valid UUID, handle the error
         return None
 
 
@@ -75,6 +75,7 @@ def register():
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
+
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
@@ -86,7 +87,8 @@ def login():
             next_page = request.args.get('next')
             return redirect(next_page) if next_page else redirect(url_for('index'))
         else:
-            flash('Login unsuccessful. Please check username and password', 'danger')
+            flash('Login unsuccessful. Please check username and password.', 'danger')
+
     return render_template('login.html')
 
 
@@ -103,18 +105,15 @@ def index():
     tasks = supabase.table('tasks').select('*').eq('user_id', current_user.id).order('priority', desc=True).execute()
     current_date = datetime.now()  # Ensure current datetime is naive
     tasks_by_category = {}
+
     for task in tasks.data:
         due_date = datetime.fromisoformat(task['due_date']).replace(tzinfo=None) if task['due_date'] else None
+        task['status'] = 'completed-on-time' if task[
+                                                    'done'] and due_date and due_date >= current_date else 'completed-late' if \
+        task['done'] else 'overdue' if due_date and due_date < current_date else 'pending'
 
-        if task['done']:
-            task['status'] = 'completed-on-time' if due_date and due_date >= current_date else 'completed-late'
-        else:
-            task['status'] = 'overdue' if due_date and due_date < current_date else 'pending'
-
-        category = task['category'] or 'Uncategorized'
-        if category not in tasks_by_category:
-            tasks_by_category[category] = []
-        tasks_by_category[category].append(task)
+        category = task.get('category', 'Uncategorized')
+        tasks_by_category.setdefault(category, []).append(task)
 
     return render_template('index.html', tasks_by_category=tasks_by_category, chart_url=url_for('completion_chart'))
 
