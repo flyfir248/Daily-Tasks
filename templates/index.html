@@ -30,7 +30,13 @@
                     </div>
                     <div class="task-details">
                         <span class="task-label">Due:</span>
-                        <span class="task-value">{{ task.due_date.strftime('%Y-%m-%d') if task.due_date else 'No due date' }}</span>
+                        <span class="task-value">
+                            {% if task.due_date %}
+                                {{ task.due_date.strftime('%Y-%m-%d') }}
+                            {% else %}
+                                No due date
+                            {% endif %}
+                        </span>
                     </div>
                     {% if task.done %}
                     <div class="task-status">
@@ -46,7 +52,9 @@
                 </div>
                 <div class="task-actions">
                     <a href="{{ url_for('update_task', id=task.id) }}" class="button update-btn">Update</a>
-                    <a href="{{ url_for('delete_task', id=task.id) }}" class="button delete-btn">Delete</a>
+                    <form action="{{ url_for('delete_task', id=task.id) }}" method="POST" style="display:inline;">
+                        <button type="submit" class="button delete-btn">Delete</button>
+                    </form>
                 </div>
                 <div class="subtasks-container">
                     <h4 class="subtasks-title">Subtasks:</h4>

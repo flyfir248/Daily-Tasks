@@ -12,6 +12,9 @@ import csv
 import json
 from supabase import create_client, Client
 from uuid import UUID
+from flask import jsonify
+import logging
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -107,10 +110,14 @@ def index():
     tasks_by_category = {}
 
     for task in tasks.data:
-        due_date = datetime.fromisoformat(task['due_date']).replace(tzinfo=None) if task['due_date'] else None
+        # Convert due_date string to datetime object if it exists
+        if task['due_date']:
+            task['due_date'] = datetime.fromisoformat(task['due_date'].replace('Z', '+00:00')).replace(tzinfo=None)
+
+        due_date = task['due_date']
         task['status'] = 'completed-on-time' if task[
                                                     'done'] and due_date and due_date >= current_date else 'completed-late' if \
-        task['done'] else 'overdue' if due_date and due_date < current_date else 'pending'
+            task['done'] else 'overdue' if due_date and due_date < current_date else 'pending'
 
         category = task.get('category', 'Uncategorized')
         tasks_by_category.setdefault(category, []).append(task)
@@ -166,10 +173,10 @@ def add_task():
     return render_template('add_task.html')
 
 
-@app.route('/update/<int:id>', methods=['GET', 'POST'])
+@app.route('/update/<uuid:id>', methods=['GET', 'POST'])
 @login_required
 def update_task(id):
-    task = supabase.table('tasks').select('*').eq('id', id).eq('user_id', current_user.id).execute()
+    task = supabase.table('tasks').select('*').eq('id', str(id)).eq('user_id', current_user.id).execute()
     if not task.data:
         return redirect(url_for('index'))
 
@@ -195,27 +202,45 @@ def update_task(id):
         # Handle subtasks...
         return redirect(url_for('index'))
 
-    subtasks = supabase.table('subtasks').select('*').eq('task_id', id).execute()
+    subtasks = supabase.table('subtasks').select('*').eq('task_id', str(id)).execute()
     return render_template('update_task.html', task=task, subtasks=subtasks.data)
 
-@app.route('/delete/<int:id>')
+
+@app.route('/delete_task/<id>', methods=['POST'])
 @login_required
 def delete_task(id):
-    task = supabase.table('tasks').select('*').eq('id', id).eq('user_id', current_user.id).execute()
-    if task.data:
-        task_dict = task.data[0]
-        supabase.table('tasks').delete().eq('id', id).execute()
-        supabase.table('subtasks').delete().eq('task_id', id).execute()
+    logging.info(f"Attempting to delete task with id: {id}")
 
-        supabase.table('task_history').insert({
+    # Check if the task exists in the tasks table
+    task_exists = supabase.table('tasks').select('*').eq('id', id).execute()
+
+    if not task_exists.data:
+        logging.warning(f"Task with id {id} not found.")
+        return jsonify({'success': False, 'message': 'Task not found. Cannot delete.'}), 404
+
+    try:
+        # Insert into task_history before deleting
+        history_insert = supabase.table('task_history').insert({
             'task_id': id,
             'change_type': 'deleted',
-            'details': json.dumps(task_dict)
+            'change_time': datetime.now().isoformat(),
+            'details': json.dumps({'action': 'delete'})  # You can add more details if needed
         }).execute()
+        logging.info(f"Inserted into task_history: {history_insert.data}")
 
-    return redirect(url_for('index'))
+        # Delete the task from the tasks table
+        delete_result = supabase.table('tasks').delete().eq('id', id).execute()
 
-
+        if delete_result.data:
+            logging.info(f"Task with id {id} deleted successfully.")
+            return jsonify({'success': True, 'message': 'Task deleted successfully.'})
+        else:
+            logging.warning(f"Delete operation for task {id} returned no data.")
+            return jsonify({'success': False, 'message': 'Task not deleted. Please try again.'}), 500
+    except Exception as e:
+        error_message = f"Error while deleting task: {str(e)}"
+        logging.error(error_message, exc_info=True)
+        return jsonify({'success': False, 'message': error_message}), 500
 @app.route('/task_history')
 @login_required
 def task_history():
